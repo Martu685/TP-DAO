@@ -48,12 +48,30 @@ def build(app: LibraryApp) -> ft.Control:
                     ft.Text(
                         "Habilitado" if socio["habilitado"] else "Deshabilitado"
                     ),
-                    ft.IconButton(
-                        icon=ft.Icons.EDIT_OUTLINED,
-                        tooltip="Editar socio",
-                        on_click=lambda _, selected=socio: _edit_socio(
-                            app, selected
-                        ),
+                    ft.Row(
+                        [
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT_OUTLINED,
+                                tooltip="Editar socio",
+                                on_click=lambda _, selected=socio: _edit_socio(
+                                    app, selected
+                                ),
+                            ),
+                            *(
+                                [
+                                    ft.TextButton(
+                                        "Deshabilitar",
+                                        icon=ft.Icons.BLOCK,
+                                        on_click=lambda _, selected=socio: (
+                                            _confirm_disable_socio(app, selected)
+                                        ),
+                                    )
+                                ]
+                                if socio["habilitado"]
+                                else []
+                            ),
+                        ],
+                        spacing=0,
                     ),
                 ]
                 for socio in filtered
@@ -79,6 +97,33 @@ def build(app: LibraryApp) -> ft.Control:
     )
     render_rows()
     return view
+
+
+def _confirm_disable_socio(app: LibraryApp, socio: dict[str, Any]) -> None:
+    def disable(_: Any) -> None:
+        try:
+            app.api.request(f"/api/socio/{socio['id']}", "DELETE")
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Socio deshabilitado correctamente.")
+        app.navigate("Socios")
+
+    dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Deshabilitar socio"),
+        content=ft.Text(
+            f"¿Querés deshabilitar a {socio['nombre']} {socio['apellido']}? "
+            "El socio no se eliminará permanentemente."
+        ),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda _: app.page.pop_dialog()),
+            ft.FilledButton("Deshabilitar socio", on_click=disable),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    app.page.show_dialog(dialog)
 
 
 def _new_socio(app: LibraryApp) -> None:
