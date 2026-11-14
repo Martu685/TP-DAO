@@ -77,7 +77,7 @@ def _new_book(app: LibraryApp) -> None:
     publisher = text_input("Editorial")
     year = text_input("Año de publicación", keyboard_type=ft.KeyboardType.NUMBER)
 
-    def submit(dialog: ft.AlertDialog) -> None:
+    def submit() -> None:
         if not all(
             field.value.strip() for field in (isbn, title, authors, publisher, year)
         ):
@@ -105,7 +105,7 @@ def _new_book(app: LibraryApp) -> None:
         except ApiError as error:
             notify(app.page, str(error), True)
             return
-        app.page.close(dialog)
+        app.page.pop_dialog()
         notify(app.page, "Libro agregado al catálogo.")
         app.navigate("Libros")
 

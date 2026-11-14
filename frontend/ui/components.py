@@ -11,7 +11,7 @@ def notify(page: ft.Page, message: str, error: bool = False) -> None:
         content=ft.Text(message, color=ft.Colors.WHITE),
         bgcolor=ERROR if error else ACCENT,
     )
-    page.open(page.snack_bar)
+    page.show_dialog(page.snack_bar)
 
 
 def empty_state(
@@ -97,7 +97,7 @@ def open_form(
     page: ft.Page,
     title: str,
     fields: list[ft.Control],
-    submit: Callable[[ft.AlertDialog], None],
+    submit: Callable[[], None],
 ) -> None:
     dialog = ft.AlertDialog(
         modal=True,
@@ -109,12 +109,12 @@ def open_form(
             width=420,
         ),
         actions=[
-            ft.TextButton("Cancelar", on_click=lambda _: page.close(dialog)),
-            ft.FilledButton("Guardar", on_click=lambda _: submit(dialog)),
+            ft.TextButton("Cancelar", on_click=lambda _: page.pop_dialog()),
+            ft.FilledButton("Guardar", on_click=lambda _: submit()),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
-    page.open(dialog)
+    page.show_dialog(dialog)
 
 
 def text_input(label: str, **kwargs: Any) -> ft.TextField:

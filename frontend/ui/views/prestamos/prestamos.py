@@ -158,7 +158,7 @@ def _new_prestamo(app: LibraryApp) -> None:
         value=(date.today() + timedelta(days=14)).isoformat(),
     )
 
-    def submit(dialog: ft.AlertDialog) -> None:
+    def submit() -> None:
         if not all(control.value for control in (member, branch, copy)):
             notify(app.page, "Seleccioná socio, sede y ejemplar.", True)
             return
@@ -191,7 +191,7 @@ def _new_prestamo(app: LibraryApp) -> None:
         except ApiError as error:
             notify(app.page, str(error), True)
             return
-        app.page.close(dialog)
+        app.page.pop_dialog()
         notify(app.page, "Préstamo creado correctamente.")
         app.navigate("Préstamos")
 
@@ -217,7 +217,7 @@ def _return_prestamo(app: LibraryApp, prestamo: dict[str, Any]) -> None:
         "Observaciones (opcional)", multiline=True, min_lines=2, max_lines=4
     )
 
-    def submit(dialog: ft.AlertDialog) -> None:
+    def submit() -> None:
         try:
             app.api.request(
                 f"/api/devolucion/prestamo/{prestamo['id']}",
@@ -231,7 +231,7 @@ def _return_prestamo(app: LibraryApp, prestamo: dict[str, Any]) -> None:
         except ApiError as error:
             notify(app.page, str(error), True)
             return
-        app.page.close(dialog)
+        app.page.pop_dialog()
         notify(app.page, "Devolución registrada.")
         app.navigate("Préstamos")
 

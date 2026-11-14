@@ -35,7 +35,7 @@ def build(app: LibraryApp) -> ft.Control:
             ).casefold()
         ]
         table.content = data_table(
-            ["Socio", "DNI", "Email", "Teléfono", "Estado"],
+            ["Socio", "DNI", "Email", "Teléfono", "Estado", "Acciones"],
             [
                 [
                     ft.Text(
@@ -47,6 +47,13 @@ def build(app: LibraryApp) -> ft.Control:
                     ft.Text(socio["telefono"]),
                     ft.Text(
                         "Habilitado" if socio["habilitado"] else "Deshabilitado"
+                    ),
+                    ft.IconButton(
+                        icon=ft.Icons.EDIT_OUTLINED,
+                        tooltip="Editar socio",
+                        on_click=lambda _, selected=socio: _edit_socio(
+                            app, selected
+                        ),
                     ),
                 ]
                 for socio in filtered
@@ -81,7 +88,7 @@ def _new_socio(app: LibraryApp) -> None:
     email = text_input("Email", keyboard_type=ft.KeyboardType.EMAIL)
     phone = text_input("Teléfono", keyboard_type=ft.KeyboardType.PHONE)
 
-    def submit(dialog: ft.AlertDialog) -> None:
+    def submit() -> None:
         if not all(
             field.value.strip() for field in (name, surname, dni, email, phone)
         ):
@@ -106,7 +113,7 @@ def _new_socio(app: LibraryApp) -> None:
         except ApiError as error:
             notify(app.page, str(error), True)
             return
-        app.page.close(dialog)
+        app.page.pop_dialog()
         notify(app.page, "Socio registrado correctamente.")
         app.navigate("Socios")
 
@@ -114,5 +121,54 @@ def _new_socio(app: LibraryApp) -> None:
         app.page,
         "Registrar socio",
         [name, surname, dni, email, phone],
+        submit,
+    )
+
+
+def _edit_socio(app: LibraryApp, socio: dict[str, Any]) -> None:
+    name = text_input("Nombre", value=socio["nombre"])
+    surname = text_input("Apellido", value=socio["apellido"])
+    dni = text_input(
+        "DNI", value=str(socio["dni"]), keyboard_type=ft.KeyboardType.NUMBER
+    )
+    email = text_input(
+        "Email", value=socio["email"], keyboard_type=ft.KeyboardType.EMAIL
+    )
+    phone = text_input(
+        "Teléfono", value=socio["telefono"], keyboard_type=ft.KeyboardType.PHONE
+    )
+    enabled = ft.Switch(label="Socio habilitado", value=socio["habilitado"])
+
+    def submit() -> None:
+        if not all(field.value.strip() for field in (name, surname, dni, email, phone)):
+            notify(app.page, "Completá todos los campos.", True)
+            return
+        try:
+            app.api.request(
+                f"/api/socio/{socio['id']}",
+                "PUT",
+                {
+                    "nombre": name.value.strip(),
+                    "apellido": surname.value.strip(),
+                    "dni": int(dni.value),
+                    "email": email.value.strip(),
+                    "telefono": phone.value.strip(),
+                    "habilitado": enabled.value,
+                },
+            )
+        except ValueError:
+            notify(app.page, "El DNI debe ser un número.", True)
+            return
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Socio actualizado correctamente.")
+        app.navigate("Socios")
+
+    open_form(
+        app.page,
+        f"Editar socio #{socio['id']}",
+        [name, surname, dni, email, phone, enabled],
         submit,
     )
