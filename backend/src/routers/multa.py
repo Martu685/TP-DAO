@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import date
 from src.database import get_db
-from src.models import MultaModel
+from src.models import MultaModel, PrestamoModel
 from src.schemas import APIModel
 
 router = APIRouter(prefix="/api/multa", tags=["Multa"])
@@ -16,10 +16,28 @@ class MultaSchema(APIModel):
 class MultaResponse(MultaSchema):
     id: int
 
+class MultaCreateRequest(MultaSchema):
+    prestamo_id: Optional[int] = None
+
 @router.post("", response_model=MultaResponse, status_code=status.HTTP_201_CREATED)
-def create_multa(multa: MultaSchema, db: Session = Depends(get_db)):
-    db_multa = MultaModel(**multa.model_dump())
+def create_multa(multa: MultaCreateRequest, db: Session = Depends(get_db)):
+    loan = None
+    if multa.prestamo_id is not None:
+        loan = db.get(PrestamoModel, multa.prestamo_id)
+        if loan is None:
+            raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+        if loan.multa_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="El préstamo ya tiene una multa asociada",
+            )
+
+    db_multa_data = multa.model_dump(exclude={"prestamo_id"})
+    db_multa = MultaModel(**db_multa_data)
     db.add(db_multa)
+    if loan is not None:
+        db.flush()
+        loan.multa_id = db_multa.id
     db.commit()
     db.refresh(db_multa)
     return db_multa
@@ -44,6 +62,11 @@ def delete_multa(multa_id: int, db: Session = Depends(get_db)):
     db_multa = db.query(MultaModel).filter(MultaModel.id == multa_id).first()
     if not db_multa:
         raise HTTPException(status_code=404, detail="Multa no encontrada")
+    loans = db.query(PrestamoModel).filter(PrestamoModel.multa_id == multa_id).all()
+    for loan in loans:
+        loan.multa_id = None
+    if loans:
+        db.flush()
     db.delete(db_multa)
     db.commit()
     return None

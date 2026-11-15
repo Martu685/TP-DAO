@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 import flet as ft
 
 from frontend.api.client import ApiError
-from frontend.ui import theme
 from frontend.ui.components import (
     card,
     data_table,
@@ -15,6 +14,7 @@ from frontend.ui.components import (
     section_header,
     text_input,
 )
+from frontend.ui.views.prestamos import devoluciones, multas
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
@@ -23,6 +23,13 @@ if TYPE_CHECKING:
 def build(app: LibraryApp) -> ft.Control:
     prestamos = app.api.request("/api/prestamo")
     prestamos_inter = app.api.request("/api/prestamo-interbibliotecario")
+    devoluciones_by_id = {
+        devolucion["id"]: devolucion
+        for devolucion in app.api.request("/api/devolucion")
+    }
+    multas_by_id = {
+        multa["id"]: multa for multa in app.api.request("/api/multa")
+    }
     ejemplares = app.api.request("/api/ejemplar")
     books = app.api.request("/api/libro")
     states = app.api.request("/api/estado/prestamo")
@@ -64,7 +71,7 @@ def build(app: LibraryApp) -> ft.Control:
                         "Inicio",
                         "Vencimiento",
                         "Estado",
-                        "Acción",
+                        "Gestión",
                     ],
                     [
                         _prestamo_row(
@@ -75,6 +82,8 @@ def build(app: LibraryApp) -> ft.Control:
                             book_names,
                             state_names,
                             branch_names,
+                            devoluciones_by_id,
+                            multas_by_id,
                         )
                         for prestamo in prestamos
                     ],
@@ -96,46 +105,30 @@ def _prestamo_row(
     book_names: dict[int, str],
     state_names: dict[int, str],
     branch_names: dict[int, str],
+    devoluciones_by_id: dict[int, dict[str, Any]],
+    multas_by_id: dict[int, dict[str, Any]],
 ) -> list[ft.Control]:
     copy = ejemplares_by_id.get(prestamo["ejemplar_id"], {})
     is_interlibrary = prestamo.get("tipo_prestamo") == "prestamo_interbibliotecario"
     inter_loan = inter_by_id.get(prestamo["id"], {}) if is_interlibrary else {}
-    can_return = (
-        prestamo.get("fecha_devolucion") is None
-        and prestamo.get("tipo_prestamo") == "prestamo_local"
-    )
-    actions: list[ft.Control] = []
-    if can_return:
-        actions.append(
-            ft.TextButton(
-                "Registrar devolución",
-                icon=ft.Icons.KEYBOARD_RETURN,
-                on_click=lambda _, selected=prestamo: _return_prestamo(app, selected),
-            )
-        )
-    elif is_interlibrary:
+    actions = devoluciones.actions(app, prestamo, devoluciones_by_id)
+    actions.extend(multas.actions(app, prestamo, multas_by_id))
+    if is_interlibrary:
         if prestamo.get("fecha_devolucion") is None:
             actions.append(
-                ft.TextButton(
-                    "Vencimiento",
+                ft.IconButton(
                     icon=ft.Icons.EDIT_OUTLINED,
+                    tooltip="Editar vencimiento",
                     on_click=lambda _, selected=inter_loan: _edit_interlibrary_due_date(
                         app, selected
                     ),
                 )
             )
         actions.append(
-            ft.TextButton(
-                "Remitos",
+            ft.IconButton(
                 icon=ft.Icons.LOCAL_SHIPPING_OUTLINED,
+                tooltip="Ver remitos",
                 on_click=lambda _: app.navigate("Remitos"),
-            )
-        )
-    else:
-        actions.append(
-            ft.Text(
-                "Finalizado" if prestamo.get("fecha_devolucion") else "—",
-                color=theme.MUTED,
             )
         )
     kind = "Interbibliotecario" if is_interlibrary else "Local"
@@ -156,7 +149,7 @@ def _prestamo_row(
         ft.Text(prestamo["fecha_inicio"]),
         ft.Text(prestamo["fecha_vencimiento"]),
         ft.Text(state_names.get(prestamo["estado_prestamo_id"], "—")),
-        ft.Row(actions, spacing=0, wrap=True),
+        ft.Row(actions, spacing=4, wrap=False),
     ]
 
 
@@ -447,45 +440,5 @@ def _new_prestamo(app: LibraryApp) -> None:
         app.page,
         "Crear préstamo local",
         [member, branch, copy, start, due],
-        submit,
-    )
-
-
-def _return_prestamo(app: LibraryApp, prestamo: dict[str, Any]) -> None:
-    condition = ft.Dropdown(
-        label="Estado físico",
-        value="Bueno",
-        options=[
-            ft.dropdown.Option(value, value)
-            for value in ("Bueno", "Regular", "Dañado", "Extraviado", "Destruido")
-        ],
-        border_radius=10,
-    )
-    notes = text_input(
-        "Observaciones (opcional)", multiline=True, min_lines=2, max_lines=4
-    )
-
-    def submit() -> None:
-        try:
-            app.api.request(
-                f"/api/devolucion/prestamo/{prestamo['id']}",
-                "POST",
-                {
-                    "fecha": date.today().isoformat(),
-                    "observaciones": notes.value.strip() or None,
-                    "estado_fisico": condition.value,
-                },
-            )
-        except ApiError as error:
-            notify(app.page, str(error), True)
-            return
-        app.page.pop_dialog()
-        notify(app.page, "Devolución registrada.")
-        app.navigate("Préstamos")
-
-    open_form(
-        app.page,
-        f"Devolución del préstamo #{prestamo['id']}",
-        [condition, notes],
         submit,
     )
