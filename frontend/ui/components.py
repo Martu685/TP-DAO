@@ -71,26 +71,44 @@ def card(content: ft.Control, padding: int = 20) -> ft.Container:
 
 def data_table(headers: list[str], rows: list[list[ft.Control]]) -> ft.Control:
     if not rows:
-        return empty_state("Todavía no hay registros para mostrar.")
-    return ft.Column(
+        return ft.Row([empty_state("Todavía no hay registros para mostrar.")])
+
+    return ft.Row(
         [
             ft.DataTable(
                 columns=[
-                    ft.DataColumn(ft.Text(label, weight=ft.FontWeight.W_600))
+                    ft.DataColumn(
+                        ft.Text(
+                            label,
+                            weight=ft.FontWeight.W_600,
+                            max_lines=2,
+                            overflow=ft.TextOverflow.ELLIPSIS,
+                        )
+                    )
                     for label in headers
                 ],
                 rows=[
-                    ft.DataRow(cells=[ft.DataCell(value) for value in row])
+                    ft.DataRow(cells=[_data_cell(value) for value in row])
                     for row in rows
                 ],
-                column_spacing=22,
+                column_spacing=16,
                 horizontal_margin=8,
                 data_row_min_height=58,
                 heading_row_height=48,
+                expand=True,
             )
         ],
-        scroll=ft.ScrollMode.AUTO,
+        spacing=0,
     )
+
+
+def _data_cell(value: ft.Control) -> ft.DataCell:
+    if isinstance(value, ft.Text):
+        value.max_lines = 2
+        value.overflow = ft.TextOverflow.ELLIPSIS
+        if value.value:
+            value.tooltip = value.value
+    return ft.DataCell(value)
 
 
 def open_form(
