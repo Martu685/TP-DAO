@@ -36,7 +36,7 @@ def build(app: LibraryApp) -> ft.Control:
             ).casefold()
         ]
         table.content = data_table(
-            ["Libro", "ISBN", "Autores", "Editorial", "Año"],
+            ["Libro", "ISBN", "Autores", "Editorial", "Año", "Acciones"],
             [
                 [
                     ft.Text(book["titulo"], weight=ft.FontWeight.W_500),
@@ -44,6 +44,25 @@ def build(app: LibraryApp) -> ft.Control:
                     ft.Text(", ".join(book["autores"])),
                     ft.Text(book["editorial"]),
                     ft.Text(str(book["año_publicacion"])),
+                    ft.Row(
+                        [
+                            ft.IconButton(
+                                icon=ft.Icons.EDIT_OUTLINED,
+                                tooltip="Editar libro",
+                                on_click=lambda _, selected=book: _edit_book(
+                                    app, selected
+                                ),
+                            ),
+                            ft.IconButton(
+                                icon=ft.Icons.DELETE_OUTLINE,
+                                tooltip="Eliminar libro",
+                                on_click=lambda _, selected=book: (
+                                    _confirm_delete_book(app, selected)
+                                ),
+                            ),
+                        ],
+                        spacing=0,
+                    ),
                 ]
                 for book in filtered
             ],
@@ -110,3 +129,89 @@ def _new_book(app: LibraryApp) -> None:
         app.navigate("Libros")
 
     open_form(app.page, "Agregar libro", [isbn, title, authors, publisher, year], submit)
+
+
+def _edit_book(app: LibraryApp, book: dict[str, Any]) -> None:
+    isbn = text_input("ISBN", value=book["isbn"])
+    title = text_input("Título", value=book["titulo"])
+    authors = text_input(
+        "Autores",
+        value=", ".join(book["autores"]),
+        hint_text="Separá cada autor con una coma",
+    )
+    publisher = text_input("Editorial", value=book["editorial"])
+    year = text_input(
+        "Año de publicación",
+        value=str(book["año_publicacion"]),
+        keyboard_type=ft.KeyboardType.NUMBER,
+    )
+
+    def submit() -> None:
+        if not all(
+            field.value.strip() for field in (isbn, title, authors, publisher, year)
+        ):
+            notify(app.page, "Completá todos los campos.", True)
+            return
+        try:
+            app.api.request(
+                f"/api/libro/{book['id']}",
+                "PUT",
+                {
+                    "isbn": isbn.value.strip(),
+                    "titulo": title.value.strip(),
+                    "autores": [
+                        author.strip()
+                        for author in authors.value.split(",")
+                        if author.strip()
+                    ],
+                    "editorial": publisher.value.strip(),
+                    "año_publicacion": int(year.value),
+                },
+            )
+        except ValueError:
+            notify(app.page, "El año de publicación debe ser un número.", True)
+            return
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Libro actualizado correctamente.")
+        app.navigate("Libros")
+
+    open_form(
+        app.page,
+        f"Editar libro #{book['id']}",
+        [isbn, title, authors, publisher, year],
+        submit,
+    )
+
+
+def _confirm_delete_book(app: LibraryApp, book: dict[str, Any]) -> None:
+    def delete(_: Any) -> None:
+        try:
+            app.api.request(f"/api/libro/{book['id']}", "DELETE")
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Libro eliminado correctamente.")
+        app.navigate("Libros")
+
+    dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Eliminar libro"),
+        content=ft.Text(
+            f"¿Querés eliminar «{book['titulo']}»? "
+            "No se puede eliminar si tiene ejemplares registrados."
+        ),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda _: app.page.pop_dialog()),
+            ft.FilledButton(
+                "Eliminar libro",
+                icon=ft.Icons.DELETE_OUTLINE,
+                on_click=delete,
+            ),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    app.page.show_dialog(dialog)
