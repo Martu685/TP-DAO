@@ -4,33 +4,47 @@ from typing import TYPE_CHECKING, Any
 
 import flet as ft
 
+from frontend.api.client import ApiError
 from frontend.ui.components import card, data_table, empty_state, section_header
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
 
 
-REPORTS = {
-    "Préstamos activos": "/api/reportes/prestamos-activos",
-    "Préstamos vencidos": "/api/reportes/prestamos-vencidos",
-    "Libros más solicitados": "/api/reportes/libros-mas-solicitados",
-    "Disponibilidad por sede": "/api/reportes/disponibilidad-por-sede",
-    "Material en tránsito": "/api/reportes/material-en-transito",
-}
+REPORTS = (
+    ("Préstamos activos", "/api/reportes/prestamos-activos"),
+    ("Préstamos vencidos", "/api/reportes/prestamos-vencidos"),
+    ("Libros más solicitados", "/api/reportes/libros-mas-solicitados"),
+    ("Disponibilidad por sede", "/api/reportes/disponibilidad-por-sede"),
+    ("Material en tránsito", "/api/reportes/material-en-transito"),
+)
 
 
 def build(app: LibraryApp) -> ft.Control:
     selector = ft.Dropdown(
         label="Reporte",
-        value="Préstamos activos",
-        options=[ft.dropdown.Option(label, label) for label in REPORTS],
+        value=REPORTS[0][1],
+        options=[
+            ft.dropdown.Option(endpoint, label)
+            for label, endpoint in REPORTS
+        ],
         border_radius=10,
         width=300,
     )
     table = ft.Container()
 
-    def display_report(_: Any = None) -> None:
-        rows = app.api.request(REPORTS[selector.value])
+    def display_report(event: Any = None) -> None:
+        endpoint = event.control.value if event is not None else selector.value
+        try:
+            rows = app.api.request(endpoint)
+        except ApiError as error:
+            table.content = empty_state(
+                f"No se pudo cargar el reporte: {error}",
+                ft.Icons.CLOUD_OFF_OUTLINED,
+            )
+            app.page.update()
+            return
+
         columns = list(dict.fromkeys(key for row in rows for key in row))
         if not columns:
             table.content = empty_state(
@@ -46,7 +60,7 @@ def build(app: LibraryApp) -> ft.Control:
             )
         app.page.update()
 
-    selector.on_change = display_report
+    selector.on_select = display_report
     display_report()
     return ft.Column(
         [
