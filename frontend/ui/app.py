@@ -12,6 +12,7 @@ from frontend.ui.views.ejemplares import ejemplares
 from frontend.ui.views.libros import libros
 from frontend.ui.views.prestamos import prestamos
 from frontend.ui.views.reportes import reportes
+from frontend.ui.views.remitos import remitos
 from frontend.ui.views.sedes import sedes
 from frontend.ui.views.socios import socios
 
@@ -22,6 +23,7 @@ NAV_ITEMS = (
     ("Socios", ft.Icons.GROUP_OUTLINED),
     ("Sedes", ft.Icons.LOCATION_ON_OUTLINED),
     ("Ejemplares", ft.Icons.INVENTORY_2_OUTLINED),
+    ("Remitos", ft.Icons.LOCAL_SHIPPING_OUTLINED),
     ("Préstamos", ft.Icons.SWAP_HORIZ_OUTLINED),
     ("Reportes", ft.Icons.ANALYTICS_OUTLINED),
 )
@@ -139,6 +141,7 @@ class LibraryApp:
             "Socios": lambda: socios.build(self),
             "Sedes": lambda: sedes.build(self),
             "Ejemplares": lambda: ejemplares.build(self),
+            "Remitos": lambda: remitos.build(self),
             "Préstamos": lambda: prestamos.build(self),
             "Reportes": lambda: reportes.build(self),
         }

@@ -22,4 +22,4 @@ python -m frontend
 
 La app se abre en el navegador usando el modo web de Flet. Las dependencias limitan FastAPI a una versión compatible con Flet Web. La interfaz usa `http://127.0.0.1:8000` como URL de API por defecto. Para apuntar a otra instancia, configurá `BIBLIOTECA_API_URL` antes de iniciar la app.
 
-Incluye un resumen de actividad y pantallas para consultar libros, socios, sedes, ejemplares y préstamos, registrar y editar libros, socios y sedes, crear préstamos locales, cargar devoluciones y consultar reportes.
+Incluye un resumen de actividad y pantallas para consultar libros, socios, sedes, ejemplares, remitos y préstamos, registrar y editar libros, socios y sedes, crear remitos, despacharlos y recibirlos, gestionar incidencias, crear préstamos locales, cargar devoluciones y consultar reportes.

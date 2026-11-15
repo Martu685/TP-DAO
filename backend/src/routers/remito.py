@@ -196,7 +196,13 @@ def receive_remito(remito_id: int, db: Session = Depends(get_db)):
 @router.post("/{remito_id}/incidencias", response_model=IncidenciaResponse, status_code=status.HTTP_201_CREATED)
 def create_remito_incidence(remito_id: int, incidence_data: IncidenciaSchema, db: Session = Depends(get_db)):
     remito = _get_remito(db, remito_id)
-    if normalize(_get_remito_state(db, remito).descripcion) != "en transito":
+    current_state = normalize(_get_remito_state(db, remito).descripcion)
+    if current_state == "incidencia":
+        raise HTTPException(
+            status_code=409,
+            detail="El remito ya tiene una incidencia registrada",
+        )
+    if current_state != "en transito":
         raise HTTPException(status_code=409, detail="Solo se registran incidencias durante el tránsito")
     try:
         incident_state = get_status_by_name(db, EstadoRemitoModel, "Incidencia")

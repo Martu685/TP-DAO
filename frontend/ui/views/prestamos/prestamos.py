@@ -22,27 +22,59 @@ if TYPE_CHECKING:
 
 def build(app: LibraryApp) -> ft.Control:
     prestamos = app.api.request("/api/prestamo")
+    prestamos_inter = app.api.request("/api/prestamo-interbibliotecario")
     ejemplares = app.api.request("/api/ejemplar")
     books = app.api.request("/api/libro")
     states = app.api.request("/api/estado/prestamo")
+    branches = app.api.request("/api/sede")
     ejemplares_by_id = {item["id"]: item for item in ejemplares}
     book_names = {book["id"]: book["titulo"] for book in books}
     state_names = {state["id"]: state["descripcion"] for state in states}
+    branch_names = {branch["id"]: branch["nombre"] for branch in branches}
+    inter_by_id = {loan["id"]: loan for loan in prestamos_inter}
 
     return ft.Column(
         [
             section_header(
                 "Préstamos",
-                "Seguimiento de préstamos y devoluciones.",
-                "Nuevo préstamo",
-                lambda _: _new_prestamo(app),
+                "Seguimiento de préstamos locales e interbibliotecarios.",
+            ),
+            ft.Row(
+                [
+                    ft.Container(expand=True),
+                    ft.OutlinedButton(
+                        "Nuevo interbibliotecario",
+                        icon=ft.Icons.SWAP_HORIZ_OUTLINED,
+                        on_click=lambda _: _new_interlibrary_loan(app),
+                    ),
+                    ft.FilledButton(
+                        "Nuevo préstamo local",
+                        icon=ft.Icons.ADD,
+                        on_click=lambda _: _new_prestamo(app),
+                    ),
+                ],
+                spacing=10,
             ),
             card(
                 data_table(
-                    ["N.º", "Libro / ejemplar", "Inicio", "Vencimiento", "Estado", "Acción"],
+                    [
+                        "N.º",
+                        "Tipo / recorrido",
+                        "Libro / ejemplar",
+                        "Inicio",
+                        "Vencimiento",
+                        "Estado",
+                        "Acción",
+                    ],
                     [
                         _prestamo_row(
-                            app, prestamo, ejemplares_by_id, book_names, state_names
+                            app,
+                            prestamo,
+                            inter_by_id,
+                            ejemplares_by_id,
+                            book_names,
+                            state_names,
+                            branch_names,
                         )
                         for prestamo in prestamos
                     ],
@@ -59,29 +91,63 @@ def build(app: LibraryApp) -> ft.Control:
 def _prestamo_row(
     app: LibraryApp,
     prestamo: dict[str, Any],
+    inter_by_id: dict[int, dict[str, Any]],
     ejemplares_by_id: dict[int, dict[str, Any]],
     book_names: dict[int, str],
     state_names: dict[int, str],
+    branch_names: dict[int, str],
 ) -> list[ft.Control]:
     copy = ejemplares_by_id.get(prestamo["ejemplar_id"], {})
+    is_interlibrary = prestamo.get("tipo_prestamo") == "prestamo_interbibliotecario"
+    inter_loan = inter_by_id.get(prestamo["id"], {}) if is_interlibrary else {}
     can_return = (
         prestamo.get("fecha_devolucion") is None
         and prestamo.get("tipo_prestamo") == "prestamo_local"
     )
-    action: ft.Control
+    actions: list[ft.Control] = []
     if can_return:
-        action = ft.TextButton(
-            "Registrar devolución",
-            icon=ft.Icons.KEYBOARD_RETURN,
-            on_click=lambda _, selected=prestamo: _return_prestamo(app, selected),
+        actions.append(
+            ft.TextButton(
+                "Registrar devolución",
+                icon=ft.Icons.KEYBOARD_RETURN,
+                on_click=lambda _, selected=prestamo: _return_prestamo(app, selected),
+            )
+        )
+    elif is_interlibrary:
+        if prestamo.get("fecha_devolucion") is None:
+            actions.append(
+                ft.TextButton(
+                    "Vencimiento",
+                    icon=ft.Icons.EDIT_OUTLINED,
+                    on_click=lambda _, selected=inter_loan: _edit_interlibrary_due_date(
+                        app, selected
+                    ),
+                )
+            )
+        actions.append(
+            ft.TextButton(
+                "Remitos",
+                icon=ft.Icons.LOCAL_SHIPPING_OUTLINED,
+                on_click=lambda _: app.navigate("Remitos"),
+            )
         )
     else:
-        action = ft.Text(
-            "Finalizado" if prestamo.get("fecha_devolucion") else "Interbibliotecario",
-            color=theme.MUTED,
+        actions.append(
+            ft.Text(
+                "Finalizado" if prestamo.get("fecha_devolucion") else "—",
+                color=theme.MUTED,
+            )
         )
+    kind = "Interbibliotecario" if is_interlibrary else "Local"
+    if is_interlibrary:
+        route = (
+            f"{branch_names.get(inter_loan.get('sede_origen_id'), '—')} → "
+            f"{branch_names.get(inter_loan.get('sede_destino_id'), '—')}"
+        )
+        kind = f"{kind}\n{route}"
     return [
         ft.Text(f"#{prestamo['id']}"),
+        ft.Text(kind, weight=ft.FontWeight.W_500),
         ft.Text(
             f"{book_names.get(copy.get('libro_id'), 'Libro')} · "
             f"{copy.get('codigo', '—')}",
@@ -90,8 +156,190 @@ def _prestamo_row(
         ft.Text(prestamo["fecha_inicio"]),
         ft.Text(prestamo["fecha_vencimiento"]),
         ft.Text(state_names.get(prestamo["estado_prestamo_id"], "—")),
-        action,
+        ft.Row(actions, spacing=0, wrap=True),
     ]
+
+
+def _new_interlibrary_loan(app: LibraryApp) -> None:
+    try:
+        branches = [
+            branch
+            for branch in app.api.request("/api/sede")
+            if branch["activa"]
+        ]
+        available_copies = app.api.request("/api/ejemplar/disponibilidad")
+        books = app.api.request("/api/libro")
+        states = app.api.request("/api/estado/prestamo")
+    except ApiError as error:
+        notify(app.page, str(error), True)
+        return
+
+    pending_state = next(
+        (state for state in states if state["descripcion"].casefold() == "pendiente"),
+        None,
+    )
+    if pending_state is None:
+        notify(app.page, "No se encontró el estado 'Pendiente' en la API.", True)
+        return
+    if len(branches) < 2:
+        notify(app.page, "Se necesitan al menos dos sedes activas.", True)
+        return
+    if not available_copies:
+        notify(app.page, "No hay ejemplares disponibles para prestar.", True)
+        return
+
+    branch_options = [
+        ft.dropdown.Option(str(branch["id"]), branch["nombre"])
+        for branch in branches
+    ]
+    book_names = {book["id"]: book["titulo"] for book in books}
+    origin = ft.Dropdown(
+        label="Sede de origen",
+        options=branch_options,
+        border_radius=10,
+    )
+    destination = ft.Dropdown(
+        label="Sede de destino",
+        options=branch_options,
+        border_radius=10,
+    )
+    copy = ft.Dropdown(
+        label="Ejemplar disponible",
+        options=[],
+        border_radius=10,
+    )
+    start = text_input("Fecha de inicio", value=date.today().isoformat())
+    due = text_input(
+        "Fecha de vencimiento",
+        value=(date.today() + timedelta(days=14)).isoformat(),
+    )
+
+    def update_choices(_: Any = None) -> None:
+        selected_origin = int(origin.value) if origin.value else None
+        destination.options = [
+            ft.dropdown.Option(str(branch["id"]), branch["nombre"])
+            for branch in branches
+            if branch["id"] != selected_origin
+        ]
+        if destination.value and int(destination.value) == selected_origin:
+            destination.value = None
+        copy.options = [
+            ft.dropdown.Option(
+                str(item["id"]),
+                f"{item['codigo']} · "
+                f"{book_names.get(item['libro_id'], 'Libro sin título')}",
+            )
+            for item in available_copies
+            if selected_origin is None or item["sede_id"] == selected_origin
+        ]
+        copy.value = None
+        app.page.update()
+
+    origin.on_change = update_choices
+    update_choices()
+
+    def submit() -> None:
+        if not all(control.value for control in (origin, destination, copy)):
+            notify(app.page, "Seleccioná origen, destino y ejemplar.", True)
+            return
+        try:
+            start_date = date.fromisoformat(start.value.strip())
+            due_date = date.fromisoformat(due.value.strip())
+            if due_date < start_date:
+                notify(
+                    app.page,
+                    "El vencimiento no puede ser anterior al inicio.",
+                    True,
+                )
+                return
+            app.api.request(
+                "/api/prestamo-interbibliotecario",
+                "POST",
+                {
+                    "fecha_inicio": start_date.isoformat(),
+                    "fecha_vencimiento": due_date.isoformat(),
+                    "fecha_devolucion": None,
+                    "estado_prestamo_id": pending_state["id"],
+                    "ejemplar_id": int(copy.value),
+                    "multa_id": None,
+                    "devolucion_id": None,
+                    "sede_origen_id": int(origin.value),
+                    "sede_destino_id": int(destination.value),
+                    "remito_id": None,
+                },
+            )
+        except ValueError:
+            notify(app.page, "Usá fechas válidas con formato AAAA-MM-DD.", True)
+            return
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(
+            app.page,
+            "Préstamo interbibliotecario creado. Asociálo a un remito desde la vista Remitos.",
+        )
+        app.navigate("Préstamos")
+
+    open_form(
+        app.page,
+        "Crear préstamo interbibliotecario",
+        [origin, destination, copy, start, due],
+        submit,
+    )
+
+
+def _edit_interlibrary_due_date(
+    app: LibraryApp, prestamo: dict[str, Any]
+) -> None:
+    due = text_input(
+        "Nueva fecha de vencimiento",
+        value=prestamo["fecha_vencimiento"],
+    )
+
+    def submit() -> None:
+        try:
+            due_date = date.fromisoformat(due.value.strip())
+            start_date = date.fromisoformat(prestamo["fecha_inicio"])
+            if due_date < start_date:
+                notify(
+                    app.page,
+                    "El vencimiento no puede ser anterior al inicio.",
+                    True,
+                )
+                return
+            app.api.request(
+                f"/api/prestamo-interbibliotecario/{prestamo['id']}",
+                "PUT",
+                {
+                    "fecha_inicio": prestamo["fecha_inicio"],
+                    "fecha_vencimiento": due_date.isoformat(),
+                    "fecha_devolucion": prestamo["fecha_devolucion"],
+                    "estado_prestamo_id": prestamo["estado_prestamo_id"],
+                    "ejemplar_id": prestamo["ejemplar_id"],
+                    "multa_id": prestamo["multa_id"],
+                    "devolucion_id": prestamo["devolucion_id"],
+                    "sede_origen_id": prestamo["sede_origen_id"],
+                    "sede_destino_id": prestamo["sede_destino_id"],
+                    "remito_id": prestamo["remito_id"],
+                },
+            )
+        except ValueError:
+            notify(app.page, "Usá una fecha válida con formato AAAA-MM-DD.", True)
+            return
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Fecha de vencimiento actualizada.")
+        app.navigate("Préstamos")
+
+    open_form(
+        app.page,
+        f"Editar vencimiento del préstamo #{prestamo['id']}",
+        [due],
+        submit,
+    )
 
 
 def _new_prestamo(app: LibraryApp) -> None:
