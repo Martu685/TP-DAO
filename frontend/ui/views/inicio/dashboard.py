@@ -126,7 +126,7 @@ def _metric_card(
             ],
             spacing=15,
         ),
-        expand=True,
+        width=220,
         padding=20,
         bgcolor=ft.Colors.WHITE,
         border=ft.Border.all(1, theme.BORDER),
