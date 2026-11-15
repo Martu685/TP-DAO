@@ -9,6 +9,7 @@ from frontend.ui.views.inicio import (
     dashboard,
 )
 from frontend.ui.views.ejemplares import ejemplares
+from frontend.ui.views.historial import historial
 from frontend.ui.views.libros import libros
 from frontend.ui.views.prestamos import prestamos
 from frontend.ui.views.reportes import reportes
@@ -21,6 +22,7 @@ NAV_ITEMS = (
     ("Inicio", ft.Icons.DASHBOARD_OUTLINED),
     ("Libros", ft.Icons.MENU_BOOK_OUTLINED),
     ("Socios", ft.Icons.GROUP_OUTLINED),
+    ("Historial de lecturas", ft.Icons.HISTORY_OUTLINED),
     ("Sedes", ft.Icons.LOCATION_ON_OUTLINED),
     ("Ejemplares", ft.Icons.INVENTORY_2_OUTLINED),
     ("Remitos", ft.Icons.LOCAL_SHIPPING_OUTLINED),
@@ -139,6 +141,7 @@ class LibraryApp:
             "Inicio": lambda: dashboard.build(self),
             "Libros": lambda: libros.build(self),
             "Socios": lambda: socios.build(self),
+            "Historial de lecturas": lambda: historial.build(self),
             "Sedes": lambda: sedes.build(self),
             "Ejemplares": lambda: ejemplares.build(self),
             "Remitos": lambda: remitos.build(self),
