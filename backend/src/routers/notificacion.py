@@ -2,11 +2,16 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+from src.auth import require_roles
 from src.database import get_db
 from src.models import NotificacionModel
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/notificacion", tags=["Notificacion"])
+router = APIRouter(
+    prefix="/api/notificacion",
+    tags=["Notificacion"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 class NotificacionSchema(APIModel):
     fecha: datetime

@@ -2,11 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+from src.auth import require_roles
 from src.database import get_db
 from src.models import PrestamoModel
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/prestamo", tags=["Prestamo (Base)"])
+router = APIRouter(
+    prefix="/api/prestamo",
+    tags=["Prestamo (Base)"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 # Clase Base Pydantic con los atributos comunes del UML
 class PrestamoBaseSchema(APIModel):

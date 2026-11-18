@@ -1,6 +1,6 @@
 ﻿from fastapi import FastAPI
 from src.database import engine, Base
-from src.bootstrap import initialize_reference_data
+from src.bootstrap import initialize_admin_account, initialize_reference_data
 from src.routers import (
     sede_router,
     socio_router,
@@ -18,10 +18,12 @@ from src.routers import (
     estado_router,
     historial_router,
     reportes_router,
+    usuario_router,
 )
 
 Base.metadata.create_all(bind=engine)
 initialize_reference_data()
+initialize_admin_account()
 
 app = FastAPI(
     title="Sistema de Gestion de Biblioteca - UTN FRC",
@@ -45,6 +47,7 @@ app.include_router(notificacion_router)
 app.include_router(estado_router)
 app.include_router(historial_router)
 app.include_router(reportes_router)
+app.include_router(usuario_router)
 
 @app.get("/", tags=["Root"])
 def root():

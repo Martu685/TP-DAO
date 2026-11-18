@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from src.auth import get_current_user, require_roles
 from src.database import get_db
 from src.models import EjemplarModel
 from src.library_rules import (
@@ -8,18 +9,25 @@ from src.library_rules import (
     get_status_by_id,
     has_open_loan,
     is_exemplar_available,
+    normalize,
     require_active_branch,
+    validate_physical_condition,
 )
 from src.models import (
     DetalleRemitoModel,
     EstadoEjemplarModel,
+    EstadoReservaModel,
     LibroModel,
     PrestamoModel,
     ReservaModel,
 )
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/ejemplar", tags=["Ejemplar"])
+router = APIRouter(
+    prefix="/api/ejemplar",
+    tags=["Ejemplar"],
+    dependencies=[Depends(get_current_user)],
+)
 
 class EjemplarSchema(APIModel):
     codigo: str
@@ -31,23 +39,22 @@ class EjemplarSchema(APIModel):
 class EjemplarResponse(EjemplarSchema):
     id: int
 
-@router.post("", response_model=EjemplarResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=EjemplarResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def create_ejemplar(ejemplar: EjemplarSchema, db: Session = Depends(get_db)):
     data = ejemplar.model_dump()
     try:
         require_active_branch(db, data["sede_id"])
         if db.get(LibroModel, data["libro_id"]) is None:
             raise BusinessRuleError("El libro no existe")
+        data["estado_fisico"] = validate_physical_condition(data["estado_fisico"])
         state = get_status_by_id(db, EstadoEjemplarModel, data["estado_ejemplar_id"])
-        if state.descripcion.strip().lower() not in {
-            "disponible",
-            "no disponible",
-            "dañado",
-            "danado",
-            "extraviado",
-            "destruido",
-        }:
-            raise BusinessRuleError("Un ejemplar nuevo no puede estar prestado o en tránsito")
+        if state.descripcion.strip().lower() != "disponible":
+            raise BusinessRuleError("Un ejemplar nuevo debe estar Disponible")
     except BusinessRuleError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -80,7 +87,11 @@ def get_ejemplares_disponibles(
         query = query.filter(EjemplarModel.sede_id == sede_id)
     return [item for item in query.all() if is_exemplar_available(db, item)]
 
-@router.put("/{ejemplar_id}", response_model=EjemplarResponse)
+@router.put(
+    "/{ejemplar_id}",
+    response_model=EjemplarResponse,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def update_ejemplar(ejemplar_id: int, ejemplar_data: EjemplarSchema, db: Session = Depends(get_db)):
     db_ejemplar = db.query(EjemplarModel).filter(EjemplarModel.id == ejemplar_id).first()
     if not db_ejemplar:
@@ -88,15 +99,44 @@ def update_ejemplar(ejemplar_id: int, ejemplar_data: EjemplarSchema, db: Session
     data = ejemplar_data.model_dump()
     if has_open_loan(db, ejemplar_id) and any(
         data[key] != getattr(db_ejemplar, key)
-        for key in ("sede_id", "estado_ejemplar_id")
+        for key in ("sede_id", "estado_ejemplar_id", "estado_fisico")
     ):
         raise HTTPException(
             status_code=409,
-            detail="No se puede mover ni cambiar el estado de un ejemplar con préstamo abierto",
+            detail="No se puede modificar un ejemplar con préstamo abierto",
         )
     try:
         require_active_branch(db, data["sede_id"])
-        get_status_by_id(db, EstadoEjemplarModel, data["estado_ejemplar_id"])
+        data["estado_fisico"] = validate_physical_condition(data["estado_fisico"])
+        target_state = get_status_by_id(db, EstadoEjemplarModel, data["estado_ejemplar_id"])
+        current_state = get_status_by_id(db, EstadoEjemplarModel, db_ejemplar.estado_ejemplar_id)
+        allowed_transitions = {
+            "disponible": {"prestado", "reservado"},
+            "prestado": {"disponible"},
+            "reservado": {"prestado", "disponible"},
+        }
+        current_name = normalize(current_state.descripcion)
+        target_name = normalize(target_state.descripcion)
+        if current_name != target_name and target_name not in allowed_transitions.get(
+            "prestado" if current_name == "en transito" else current_name, set()
+        ):
+            raise BusinessRuleError("La transición de estado del ejemplar no está permitida")
+        if target_name == "prestado" and not has_open_loan(db, ejemplar_id):
+            raise BusinessRuleError("Un ejemplar solo puede estar Prestado con un préstamo activo")
+        active_reservations = db.query(ReservaModel).filter(
+            ReservaModel.ejemplar_id == ejemplar_id
+        ).all()
+        has_accepted_reservation = any(
+            (reservation_state := db.get(EstadoReservaModel, reservation.estado_reserva_id))
+            and normalize(reservation_state.descripcion) in {"aceptada", "disponible"}
+            for reservation in active_reservations
+        )
+        if target_name == "reservado" and not has_accepted_reservation:
+            raise BusinessRuleError("Un ejemplar solo puede estar Reservado con una reserva Aceptada")
+        if target_name == "disponible" and (
+            has_open_loan(db, ejemplar_id) or has_accepted_reservation
+        ):
+            raise BusinessRuleError("El ejemplar todavía tiene un préstamo o reserva activa")
     except BusinessRuleError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     for key, value in data.items():
@@ -105,7 +145,11 @@ def update_ejemplar(ejemplar_id: int, ejemplar_data: EjemplarSchema, db: Session
     db.refresh(db_ejemplar)
     return db_ejemplar
 
-@router.delete("/{ejemplar_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{ejemplar_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def delete_ejemplar(ejemplar_id: int, db: Session = Depends(get_db)):
     db_ejemplar = db.query(EjemplarModel).filter(EjemplarModel.id == ejemplar_id).first()
     if not db_ejemplar:

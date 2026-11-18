@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from src.auth import require_roles
 from src.database import get_db
 from src.models import (
     EstadoPrestamoModel,
@@ -20,7 +21,11 @@ from src.prestamo_state import InvalidPrestamoTransition
 from src.prestamo_workflow import PrestamoStateNotFound, change_prestamo_state
 from src.routers.prestamo import PrestamoBaseSchema
 
-router = APIRouter(prefix="/api/prestamo-interbibliotecario", tags=["PrestamoInterbibliotecario"])
+router = APIRouter(
+    prefix="/api/prestamo-interbibliotecario",
+    tags=["PrestamoInterbibliotecario"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 # Subclase Pydantic que hereda de PrestamoBaseSchema
 class PrestamoInterSchema(PrestamoBaseSchema):

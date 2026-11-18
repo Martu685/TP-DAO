@@ -19,7 +19,7 @@ class PrestamoState(ABC):
 
 class PendienteState(PrestamoState):
     name = "Pendiente"
-    allowed_transitions = frozenset({"Activo", "Cancelado"})
+    allowed_transitions = frozenset({"Activo"})
 
 
 class ActivoState(PrestamoState):
@@ -73,7 +73,7 @@ def validate_prestamo_transition(current_description, target_description):
 
 
 def validate_initial_prestamo_state(description):
-    if not isinstance(get_prestamo_state(description), (PendienteState, ActivoState)):
+    if not isinstance(get_prestamo_state(description), ActivoState):
         raise InvalidPrestamoTransition(
-            "Un préstamo nuevo debe comenzar Pendiente o Activo"
+            "Un préstamo local nuevo debe comenzar Activo"
         )

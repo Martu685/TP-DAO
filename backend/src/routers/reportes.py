@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from src.auth import require_roles
 from src.database import get_db
 from src.library_rules import is_exemplar_available, normalize
 from src.models import (
@@ -22,7 +23,11 @@ from src.models import (
 )
 
 
-router = APIRouter(prefix="/api/reportes", tags=["Reportes"])
+router = APIRouter(
+    prefix="/api/reportes",
+    tags=["Reportes"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 
 def _loan_report_row(loan):

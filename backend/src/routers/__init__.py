@@ -14,6 +14,7 @@ from .notificacion import router as notificacion_router
 from .estado import router as estado_router
 from .historial import router as historial_router
 from .reportes import router as reportes_router
+from .usuario import router as usuario_router
 
 __all__ = [
     "sede_router",
@@ -32,4 +33,5 @@ __all__ = [
     "estado_router",
     "historial_router",
     "reportes_router",
+    "usuario_router",
 ]

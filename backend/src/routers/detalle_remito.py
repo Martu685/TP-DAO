@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from src.auth import require_roles
 from src.database import get_db
 from src.library_rules import normalize
 from src.models import (
@@ -12,7 +13,11 @@ from src.models import (
 )
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/detalle-remito", tags=["DetalleRemito"])
+router = APIRouter(
+    prefix="/api/detalle-remito",
+    tags=["DetalleRemito"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 class DetalleRemitoSchema(APIModel):
     remito_id: int

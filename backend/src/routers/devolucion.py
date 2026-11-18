@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 from src.config import MULTA_DIARIA
+from src.auth import require_roles
 from src.database import get_db
 from src.library_rules import (
     BusinessRuleError,
@@ -11,6 +12,7 @@ from src.library_rules import (
     normalize,
     release_exemplar_to_reservation,
     set_exemplar_state,
+    validate_physical_condition,
 )
 from src.models import (
     DevolucionModel,
@@ -24,7 +26,11 @@ from src.prestamo_observer import PrestamoEstadoEvent, prestamo_subject
 from src.prestamo_workflow import change_prestamo_state
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/devolucion", tags=["Devolucion"])
+router = APIRouter(
+    prefix="/api/devolucion",
+    tags=["Devolucion"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 class DevolucionSchema(APIModel):
     fecha: date
@@ -111,20 +117,13 @@ def return_loan(
     if MULTA_DIARIA < 0:
         raise HTTPException(status_code=500, detail="MULTA_DIARIA no puede ser negativa")
 
-    physical_condition = normalize(devolucion.estado_fisico)
-    physical_states = {
-        "bueno": ("Disponible", "Bueno"),
-        "regular": ("Disponible", "Regular"),
-        "disponible": ("Disponible", "Bueno"),
-        "danado": ("Dañado", "Dañado"),
-        "extraviado": ("Extraviado", "Extraviado"),
-        "destruido": ("Destruido", "Destruido"),
-    }
-    if physical_condition not in physical_states:
+    try:
+        physical_condition = validate_physical_condition(devolucion.estado_fisico)
+    except BusinessRuleError as error:
         raise HTTPException(
             status_code=422,
-            detail="estado_fisico debe ser Bueno, Regular, Dañado, Extraviado o Destruido",
-        )
+            detail=str(error),
+        ) from error
 
     try:
         returned_state = get_status_by_name(db, EstadoPrestamoModel, "Devuelto")
@@ -141,9 +140,8 @@ def return_loan(
         change_prestamo_state(
             db, loan, returned_state.id, allow_return=True, release_copy=False
         )
-        item_state, normalized_condition = physical_states[physical_condition]
-        loan.ejemplar.estado_fisico = normalized_condition
-        set_exemplar_state(db, loan.ejemplar, item_state)
+        loan.ejemplar.estado_fisico = physical_condition
+        release_exemplar_to_reservation(db, loan.ejemplar, loan.id)
 
         db.add(
             HistorialLecturaModel(
@@ -153,9 +151,6 @@ def return_loan(
                 prestamo_id=loan.id,
             )
         )
-
-        if item_state == "Disponible":
-            release_exemplar_to_reservation(db, loan.ejemplar, loan.id)
 
         db.commit()
         db.refresh(return_record)

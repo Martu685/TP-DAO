@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from src.auth import require_roles
 from src.database import get_db
 from src.models import EstadoPrestamoModel, EstadoReservaModel, PrestamoLocalModel
 from src.library_rules import (
@@ -17,7 +18,11 @@ from src.prestamo_state import InvalidPrestamoTransition, validate_initial_prest
 from src.prestamo_workflow import PrestamoStateNotFound, change_prestamo_state
 from src.routers.prestamo import PrestamoBaseSchema
 
-router = APIRouter(prefix="/api/prestamo-local", tags=["PrestamoLocal"])
+router = APIRouter(
+    prefix="/api/prestamo-local",
+    tags=["PrestamoLocal"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 # Subclase Pydantic que hereda de PrestamoBaseSchema
 class PrestamoLocalSchema(PrestamoBaseSchema):
@@ -54,11 +59,7 @@ def create_prestamo_local(prestamo: PrestamoLocalSchema, db: Session = Depends(g
             ready_reservation.estado_reserva_id = get_status_by_name(
                 db, EstadoReservaModel, "Atendida"
             ).id
-        set_exemplar_state(
-            db,
-            exemplar,
-            "Prestado" if normalize(state.descripcion) != "pendiente" else "Reservado",
-        )
+        set_exemplar_state(db, exemplar, "Prestado")
     except (BusinessRuleError, InvalidPrestamoTransition) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

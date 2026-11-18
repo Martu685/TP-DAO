@@ -24,6 +24,27 @@ class EstadoPrestamoModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     descripcion = Column(String, nullable=False)
 
+
+class UsuarioModel(Base):
+    __tablename__ = "usuarios"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    rol = Column(String, nullable=False, default="socio")
+    socio_id = Column(Integer, ForeignKey("socios.id"), unique=True, nullable=True)
+    activo = Column(Boolean, nullable=False, default=True)
+
+    socio = relationship("SocioModel")
+
+
+class SesionModel(Base):
+    __tablename__ = "sesiones"
+    token_hash = Column(String, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    vence_en = Column(DateTime, nullable=False)
+
+    usuario = relationship("UsuarioModel")
+
 # ==================== ENTIDADES PRINCIPALES ====================
 
 class SocioModel(Base):

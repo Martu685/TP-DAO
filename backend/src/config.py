@@ -1,4 +1,4 @@
 import os
 
 
-MULTA_DIARIA = float(os.getenv("MULTA_DIARIA", "100"))
+MULTA_DIARIA = float(os.getenv("MULTA_DIARIA", "1000"))

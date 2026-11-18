@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 from pydantic import Field
+from src.auth import require_roles
 from src.database import get_db
 from src.library_rules import (
     BusinessRuleError,
-    get_status_by_id,
     get_status_by_name,
     normalize,
     release_exemplar_to_reservation,
@@ -23,7 +23,11 @@ from src.models import (
 from src.prestamo_workflow import change_prestamo_state
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/remito", tags=["Remito"])
+router = APIRouter(
+    prefix="/api/remito",
+    tags=["Remito"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 class RemitoResponse(APIModel):
     id: int
@@ -145,6 +149,30 @@ def dispatch_remito(remito_id: int, db: Session = Depends(get_db)):
     except (BusinessRuleError, ValueError) as error:
         db.rollback()
         raise HTTPException(status_code=422, detail=str(error)) from error
+    return remito
+
+
+@router.post("/{remito_id}/cancelar", response_model=RemitoResponse)
+def cancel_remito(remito_id: int, db: Session = Depends(get_db)):
+    remito = _get_remito(db, remito_id)
+    if normalize(_get_remito_state(db, remito).descripcion) != "preparado":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se puede cancelar un remito Preparado",
+        )
+    try:
+        cancelled_state = get_status_by_name(db, EstadoRemitoModel, "Cancelado")
+        loans = db.query(PrestamoInterbibliotecarioModel).filter(
+            PrestamoInterbibliotecarioModel.remito_id == remito.id
+        ).all()
+        for loan in loans:
+            loan.remito_id = None
+        remito.estado_remito_id = cancelled_state.id
+        db.commit()
+        db.refresh(remito)
+    except BusinessRuleError as error:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(error)) from error
     return remito
 
 

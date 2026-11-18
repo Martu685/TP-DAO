@@ -2,10 +2,15 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from src.database import get_db
+from src.auth import require_roles
 from src.models import SocioModel
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/socio", tags=["Socio"])
+router = APIRouter(
+    prefix="/api/socio",
+    tags=["Socio"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 class SocioSchema(APIModel):
     nombre: str

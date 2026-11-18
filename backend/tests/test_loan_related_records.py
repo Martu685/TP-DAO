@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 from fastapi import HTTPException
 
 from src.database import Base
+from src.library_rules import is_exemplar_available, validate_physical_condition
 from src.models import (
     DevolucionModel,
     EjemplarModel,
@@ -260,6 +261,21 @@ class LoanRelatedRecordTests(unittest.TestCase):
             )
 
         self.assertEqual(error.exception.status_code, 409)
+
+    def test_physical_condition_controls_exemplar_availability(self):
+        self.loan.fecha_devolucion = date.today()
+        self.loan.estado_prestamo_id = self.returned.id
+        self.copy.estado_ejemplar_id = self.copy_available.id
+
+        self.copy.estado_fisico = validate_physical_condition("Dañado")
+        self.assertTrue(is_exemplar_available(self.session, self.copy))
+
+        for condition in ("Extraviado", "Destruido"):
+            self.copy.estado_fisico = validate_physical_condition(condition)
+            self.assertFalse(is_exemplar_available(self.session, self.copy))
+
+        with self.assertRaises(ValueError):
+            validate_physical_condition("Regular")
 
 
 if __name__ == "__main__":

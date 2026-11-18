@@ -2,11 +2,16 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
+from src.auth import require_roles
 from src.database import get_db
 from src.models import MultaModel, PrestamoModel
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/multa", tags=["Multa"])
+router = APIRouter(
+    prefix="/api/multa",
+    tags=["Multa"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 class MultaSchema(APIModel):
     monto: float

@@ -1,11 +1,16 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+from src.auth import get_current_user, require_roles
 from src.database import get_db
 from src.models import EjemplarModel, LibroModel
 from src.schemas import APIModel
 
-router = APIRouter(prefix="/api/libro", tags=["Libro"])
+router = APIRouter(
+    prefix="/api/libro",
+    tags=["Libro"],
+    dependencies=[Depends(get_current_user)],
+)
 
 class LibroSchema(APIModel):
     isbn: str
@@ -17,7 +22,12 @@ class LibroSchema(APIModel):
 class LibroResponse(LibroSchema):
     id: int
 
-@router.post("", response_model=LibroResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=LibroResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def create_libro(libro: LibroSchema, db: Session = Depends(get_db)):
     db_libro = LibroModel(**libro.model_dump())
     db.add(db_libro)
@@ -29,7 +39,11 @@ def create_libro(libro: LibroSchema, db: Session = Depends(get_db)):
 def get_libros(db: Session = Depends(get_db)):
     return db.query(LibroModel).all()
 
-@router.put("/{libro_id}", response_model=LibroResponse)
+@router.put(
+    "/{libro_id}",
+    response_model=LibroResponse,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def update_libro(libro_id: int, libro_data: LibroSchema, db: Session = Depends(get_db)):
     db_libro = db.query(LibroModel).filter(LibroModel.id == libro_id).first()
     if not db_libro:
@@ -40,7 +54,11 @@ def update_libro(libro_id: int, libro_data: LibroSchema, db: Session = Depends(g
     db.refresh(db_libro)
     return db_libro
 
-@router.delete("/{libro_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{libro_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def delete_libro(libro_id: int, db: Session = Depends(get_db)):
     db_libro = db.query(LibroModel).filter(LibroModel.id == libro_id).first()
     if not db_libro:

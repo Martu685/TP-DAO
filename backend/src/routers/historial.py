@@ -4,12 +4,17 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from src.auth import require_roles
 from src.database import get_db
 from src.models import HistorialLecturaModel
 from src.schemas import APIModel
 
 
-router = APIRouter(prefix="/api/historial-lecturas", tags=["Historial de lecturas"])
+router = APIRouter(
+    prefix="/api/historial-lecturas",
+    tags=["Historial de lecturas"],
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 
 
 class HistorialLecturaResponse(APIModel):

@@ -36,12 +36,8 @@ def change_prestamo_state(
 
     prestamo.estado_prestamo_id = target_state.id
     if target_name == "activo":
-        set_exemplar_state(
-            db,
-            prestamo.ejemplar,
-            "En tránsito" if hasattr(prestamo, "sede_destino_id") else "Prestado",
-        )
-    elif target_name == "cancelado" or (target_name == "devuelto" and release_copy):
+        set_exemplar_state(db, prestamo.ejemplar, "Prestado")
+    elif target_name == "devuelto" and release_copy:
         release_exemplar_to_reservation(db, prestamo.ejemplar, prestamo.id)
     elif target_name == "devuelto":
         set_exemplar_state(db, prestamo.ejemplar, "Disponible")

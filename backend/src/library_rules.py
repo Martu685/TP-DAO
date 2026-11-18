@@ -20,6 +20,14 @@ class BusinessRuleError(ValueError):
     pass
 
 
+PHYSICAL_CONDITIONS = {
+    "bueno": "Bueno",
+    "danado": "Dañado",
+    "extraviado": "Extraviado",
+    "destruido": "Destruido",
+}
+
+
 def normalize(value):
     decomposed = unicodedata.normalize("NFKD", value.strip().lower())
     return "".join(
@@ -27,6 +35,15 @@ def normalize(value):
         for character in decomposed
         if not unicodedata.combining(character)
     )
+
+
+def validate_physical_condition(value):
+    normalized = normalize(value)
+    if normalized not in PHYSICAL_CONDITIONS:
+        raise BusinessRuleError(
+            "estado_fisico debe ser Bueno, Dañado, Extraviado o Destruido"
+        )
+    return PHYSICAL_CONDITIONS[normalized]
 
 
 def get_status_by_name(db: Session, model, description):
@@ -75,6 +92,8 @@ def is_exemplar_available(db: Session, exemplar, ignore_loan_id=None):
     item_state = db.get(EstadoEjemplarModel, exemplar.estado_ejemplar_id)
     if item_state is None or normalize(item_state.descripcion) != "disponible":
         return False
+    if normalize(exemplar.estado_fisico) in {"extraviado", "destruido"}:
+        return False
 
     return not has_open_loan(db, exemplar.id, ignore_loan_id)
 
@@ -111,11 +130,10 @@ def release_exemplar_to_reservation(db: Session, exemplar, loan_id=None):
         state = db.get(EstadoReservaModel, reservation.estado_reserva_id)
         if (
             state
-            and normalize(state.descripcion) == "pendiente"
+            and normalize(state.descripcion) in {"aceptada", "disponible"}
             and reservation.sede_id == exemplar.sede_id
+            and normalize(exemplar.estado_fisico) not in {"extraviado", "destruido"}
         ):
-            ready_state = get_status_by_name(db, EstadoReservaModel, "Disponible")
-            reservation.estado_reserva_id = ready_state.id
             set_exemplar_state(db, exemplar, "Reservado")
             prestamo_subject.notify(
                 PrestamoEstadoEvent(
@@ -151,6 +169,8 @@ def validate_local_loan(
     exemplar = db.get(EjemplarModel, exemplar_id)
     if exemplar is None:
         raise BusinessRuleError("El ejemplar no existe")
+    if normalize(exemplar.estado_fisico) in {"extraviado", "destruido"}:
+        raise BusinessRuleError("No se puede prestar un ejemplar Extraviado o Destruido")
     item_state = db.get(EstadoEjemplarModel, exemplar.estado_ejemplar_id)
     ready_reservation = find_ready_reservation(
         db, member_id, branch_id, exemplar_id
@@ -181,15 +201,18 @@ def validate_local_loan(
 
 
 def find_ready_reservation(db: Session, member_id, branch_id, exemplar_id):
-    reservations = db.query(ReservaModel).filter(
-        ReservaModel.socio_id == member_id,
-        ReservaModel.sede_id == branch_id,
-        ReservaModel.ejemplar_id == exemplar_id,
+    reservations = (
+        db.query(ReservaModel)
+        .filter(
+            ReservaModel.sede_id == branch_id,
+            ReservaModel.ejemplar_id == exemplar_id,
+        )
+        .order_by(ReservaModel.fecha, ReservaModel.id)
     )
     for reservation in reservations:
         state = db.get(EstadoReservaModel, reservation.estado_reserva_id)
-        if state and normalize(state.descripcion) == "disponible":
-            return reservation
+        if state and normalize(state.descripcion) in {"aceptada", "disponible"}:
+            return reservation if reservation.socio_id == member_id else None
     return None
 
 
@@ -208,6 +231,8 @@ def validate_interlibrary_loan(
         raise BusinessRuleError("Las sedes de origen y destino deben ser distintas")
     validate_loan_dates(start_date, due_date)
     exemplar = require_available_exemplar(db, exemplar_id, ignore_loan_id)
+    if normalize(exemplar.estado_fisico) in {"extraviado", "destruido"}:
+        raise BusinessRuleError("No se puede prestar un ejemplar Extraviado o Destruido")
     if exemplar.sede_id != origin.id:
         raise BusinessRuleError("El ejemplar no está en la sede de origen")
     return exemplar
@@ -248,6 +273,7 @@ def validate_reservation(
         )
         if same_book and state and normalize(state.descripcion) not in {
             "atendida",
+            "rechazada",
             "cancelada",
             "completada",
         }:
