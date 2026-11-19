@@ -123,8 +123,15 @@ def _remito_actions(
     actions: list[ft.Control] = [
         ft.TextButton(
             "Detalle",
-            on_click=lambda _, selected=remito, selected_details=details: (
-                _show_details(app, selected, selected_details, copies_by_id, book_names)
+            on_click=lambda _, selected=remito, selected_details=details, selected_status=status_name: (
+                _show_details(
+                    app,
+                    selected,
+                    selected_details,
+                    selected_status,
+                    copies_by_id,
+                    book_names,
+                )
             ),
         ),
         ft.TextButton(
@@ -169,6 +176,7 @@ def _show_details(
     app: LibraryApp,
     remito: dict[str, Any],
     details: list[dict[str, Any]],
+    status_name: str,
     copies_by_id: dict[int, dict[str, Any]],
     book_names: dict[int, str],
 ) -> None:
@@ -177,9 +185,33 @@ def _show_details(
         copy = copies_by_id.get(detail["ejemplar_id"], {})
         title = book_names.get(copy.get("libro_id"), "Libro no encontrado")
         code = copy.get("codigo", f"Ejemplar #{detail['ejemplar_id']}")
-        items.append(ft.Text(f"{code} · {title}"))
+        item_actions: list[ft.Control] = [ft.Text(f"{code} · {title}")]
+        if status_name.casefold() == "preparado":
+            item_actions.append(
+                ft.IconButton(
+                    icon=ft.Icons.DELETE_OUTLINE,
+                    tooltip="Quitar del remito",
+                    on_click=lambda _, selected_detail=detail: (
+                        _confirm_delete_detail(app, selected_detail, remito)
+                    ),
+                )
+            )
+        items.append(ft.Row(item_actions, alignment=ft.MainAxisAlignment.SPACE_BETWEEN))
     if not items:
         items.append(ft.Text("El remito no tiene ejemplares asociados."))
+
+    actions: list[ft.Control] = [
+        ft.TextButton("Cerrar", on_click=lambda _: app.page.pop_dialog())
+    ]
+    if status_name.casefold() == "preparado":
+        actions.insert(
+            0,
+            ft.FilledButton(
+                "Agregar ejemplar",
+                icon=ft.Icons.ADD,
+                on_click=lambda _: _open_add_detail(app, remito, details),
+            ),
+        )
 
     dialog = ft.AlertDialog(
         modal=True,
@@ -189,8 +221,116 @@ def _show_details(
             width=460,
             height=300,
         ),
+        actions=actions,
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    app.page.show_dialog(dialog)
+
+
+def _confirm_delete_detail(
+    app: LibraryApp,
+    detail: dict[str, Any],
+    remito: dict[str, Any],
+) -> None:
+    def delete(_: Any) -> None:
+        try:
+            app.api.request(
+                f"/api/detalle-remito/{detail['id']}",
+                "DELETE",
+            )
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Ejemplar quitado del remito.")
+        app.navigate("Remitos")
+
+    dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Quitar ejemplar"),
+        content=ft.Text(
+            f"¿Querés quitar el ejemplar #{detail['ejemplar_id']} "
+            f"del remito {remito['numero']}?"
+        ),
         actions=[
-            ft.TextButton("Cerrar", on_click=lambda _: app.page.pop_dialog()),
+            ft.TextButton("Cancelar", on_click=lambda _: app.page.pop_dialog()),
+            ft.FilledButton("Quitar", on_click=delete),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    app.page.show_dialog(dialog)
+
+
+def _open_add_detail(
+    app: LibraryApp,
+    remito: dict[str, Any],
+    details: list[dict[str, Any]],
+) -> None:
+    app.page.pop_dialog()
+    try:
+        loans = app.api.request("/api/prestamo-interbibliotecario")
+        copies = app.api.request("/api/ejemplar")
+        books = app.api.request("/api/libro")
+    except ApiError as error:
+        notify(app.page, str(error), True)
+        return
+
+    existing_copy_ids = {detail["ejemplar_id"] for detail in details}
+    eligible_copies = [
+        copy
+        for copy in copies
+        if copy["id"] not in existing_copy_ids
+        and any(
+            loan["remito_id"] == remito["id"]
+            and loan["ejemplar_id"] == copy["id"]
+            for loan in loans
+        )
+    ]
+    if not eligible_copies:
+        notify(app.page, "No hay ejemplares asociados para agregar.", True)
+        return
+
+    book_names = {book["id"]: book["titulo"] for book in books}
+    copy = ft.Dropdown(
+        label="Ejemplar",
+        options=[
+            ft.dropdown.Option(
+                str(item["id"]),
+                f"{item['codigo']} · "
+                f"{book_names.get(item['libro_id'], 'Libro sin título')}",
+            )
+            for item in eligible_copies
+        ],
+        border_radius=10,
+    )
+
+    def submit(_: Any) -> None:
+        if not copy.value:
+            notify(app.page, "Seleccioná un ejemplar.", True)
+            return
+        try:
+            app.api.request(
+                "/api/detalle-remito",
+                "POST",
+                {
+                    "remito_id": remito["id"],
+                    "ejemplar_id": int(copy.value),
+                },
+            )
+        except ApiError as error:
+            notify(app.page, str(error), True)
+            return
+        app.page.pop_dialog()
+        notify(app.page, "Ejemplar agregado al remito.")
+        app.navigate("Remitos")
+
+    dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Agregar ejemplar"),
+        content=ft.Container(content=copy, width=460),
+        actions=[
+            ft.TextButton("Cancelar", on_click=lambda _: app.page.pop_dialog()),
+            ft.FilledButton("Agregar", on_click=submit),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )

@@ -147,6 +147,27 @@ class ReservationStateTests(unittest.TestCase):
 
         self.assertEqual(error.exception.status_code, 422)
 
+    def test_get_and_delete_reservation(self):
+        created = reserva.create_reserva(
+            self._schema(self.pending.id),
+            self.member_user,
+            self.db,
+        )
+        reserva.update_reserva(
+            created.id,
+            self._schema(self.accepted.id),
+            self.librarian,
+            self.db,
+        )
+
+        found = reserva.get_reserva(created.id, self.member_user, self.db)
+        self.assertEqual(found.id, created.id)
+
+        reserva.delete_reserva(created.id, self.member_user, self.db)
+        cancelled = self.db.get(EstadoReservaModel, created.estado_reserva_id)
+        self.assertEqual(cancelled.descripcion, "Cancelada")
+        self.assertEqual(self.copy.estado_ejemplar_id, self.available.id)
+
 
 if __name__ == "__main__":
     unittest.main()
