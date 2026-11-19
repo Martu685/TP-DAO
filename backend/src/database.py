@@ -1,6 +1,6 @@
 ﻿import os
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
@@ -18,6 +18,22 @@ if engine.dialect.name == "sqlite":
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+
+def ensure_user_branch_column():
+    schema = inspect(engine)
+    if schema.has_table("usuarios") and not any(
+        column["name"] == "sede_id"
+        for column in schema.get_columns("usuarios")
+    ):
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE usuarios ADD COLUMN sede_id INTEGER "
+                    "REFERENCES sedes(id)"
+                )
+            )
+
 
 def get_db():
     db = SessionLocal()

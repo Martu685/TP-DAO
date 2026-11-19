@@ -18,6 +18,15 @@ def build(app: LibraryApp) -> ft.Control:
             ft.Icons.LOCK_OUTLINE,
         )
 
+    try:
+        branches = [
+            branch
+            for branch in app.api.request("/api/sede")
+            if branch.get("activa")
+        ]
+    except ApiError as error:
+        return empty_state(f"No se pudieron cargar las sedes: {error}", ft.Icons.CLOUD_OFF_OUTLINED)
+
     email = text_input("Email del nuevo usuario", keyboard_type=ft.KeyboardType.EMAIL)
     password = text_input(
         "Contraseña",
@@ -30,6 +39,14 @@ def build(app: LibraryApp) -> ft.Control:
         options=[
             ft.dropdown.Option("bibliotecario", "Bibliotecario"),
             ft.dropdown.Option("admin", "Administrador"),
+        ],
+        border_radius=10,
+    )
+    branch = ft.Dropdown(
+        label="Sede asignada (opcional)",
+        options=[
+            ft.dropdown.Option(str(item["id"]), item["nombre"])
+            for item in branches
         ],
         border_radius=10,
     )
@@ -53,6 +70,7 @@ def build(app: LibraryApp) -> ft.Control:
                     "email": email.value.strip(),
                     "password": password.value,
                     "rol": role.value,
+                    "sede_id": int(branch.value) if branch.value else None,
                 },
             )
         except ApiError as error:
@@ -78,6 +96,7 @@ def build(app: LibraryApp) -> ft.Control:
                         email,
                         password,
                         role,
+                        branch,
                         ft.FilledButton(
                             "Crear cuenta",
                             icon=ft.Icons.PERSON_ADD_ALT_1,

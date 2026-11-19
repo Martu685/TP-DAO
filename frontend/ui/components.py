@@ -69,7 +69,9 @@ def card(content: ft.Control, padding: int = 20) -> ft.Container:
     )
 
 
-def data_table(headers: list[str], rows: list[list[ft.Control]]) -> ft.Control:
+def data_table(
+    headers: list[str], rows: list[list[ft.Control]], *, expand: bool = True
+) -> ft.Control:
     if not rows:
         return ft.Row([empty_state("Todavía no hay registros para mostrar.")])
 
@@ -95,7 +97,7 @@ def data_table(headers: list[str], rows: list[list[ft.Control]]) -> ft.Control:
                 horizontal_margin=8,
                 data_row_min_height=58,
                 heading_row_height=48,
-                expand=True,
+                expand=expand,
             )
         ],
         spacing=0,

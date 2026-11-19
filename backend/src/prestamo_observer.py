@@ -80,12 +80,19 @@ def notify_reservation_state_change(
     new_state: str,
     db,
 ) -> None:
+    exemplar = getattr(reservation, "ejemplar", None)
+    book = getattr(exemplar, "libro", None)
+    book_title = book.titulo if book is not None else "el libro reservado"
     estado_subject.notify(
         ReservaEstadoEvent(
             reserva_id=reservation.id,
             estado_anterior=previous_state,
             estado_nuevo=new_state,
             socio_id=reservation.socio_id,
+            mensaje=(
+                f"El libro «{book_title}» pasó de {previous_state} "
+                f"a {new_state}."
+            ),
         ),
         db,
     )

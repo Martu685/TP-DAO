@@ -32,9 +32,11 @@ class UsuarioModel(Base):
     password_hash = Column(String, nullable=False)
     rol = Column(String, nullable=False, default="socio")
     socio_id = Column(Integer, ForeignKey("socios.id"), unique=True, nullable=True)
+    sede_id = Column(Integer, ForeignKey("sedes.id"), nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
 
     socio = relationship("SocioModel")
+    sede = relationship("SedeModel")
 
 
 class SesionModel(Base):

@@ -225,42 +225,80 @@ def _new_ejemplar(app: LibraryApp) -> None:
         return
 
     codigo = text_input("Código")
-    estado_fisico = _physical_condition_input()
-    book = text_input(
-        "Libro (nombre exacto o ID)",
-        hint_text="Ingresá el título exacto o el ID del libro",
+    cantidad = text_input(
+        "Cantidad de ejemplares iguales",
+        value="1",
+        hint_text="Se numeran automáticamente: CÓDIGO-1, CÓDIGO-2, …",
+        keyboard_type=ft.KeyboardType.NUMBER,
     )
-    branch = text_input(
-        "Sede (nombre exacto o ID)",
-        hint_text="Ingresá el nombre exacto o el ID de la sede",
+    estado_fisico = _physical_condition_input()
+    book = ft.Dropdown(
+        label="Libro",
+        hint_text="Escribí para filtrar por título",
+        options=[
+            ft.dropdown.Option(str(item["id"]), item["titulo"])
+            for item in books
+        ],
+        editable=True,
+        enable_filter=True,
+        border_radius=10,
+    )
+    active_branches = [branch_item for branch_item in sedes if branch_item.get("activa")]
+    assigned_branch_id = (app.current_user or {}).get("sede_id")
+    assigned_branch = next(
+        (item for item in active_branches if item["id"] == assigned_branch_id),
+        None,
+    )
+    branch = ft.Dropdown(
+        label="Sede",
+        value=str(assigned_branch["id"]) if assigned_branch else None,
+        options=[
+            ft.dropdown.Option(str(item["id"]), item["nombre"])
+            for item in active_branches
+        ],
+        disabled=assigned_branch is not None,
+        hint_text=(
+            None if assigned_branch else "Seleccioná la sede donde se registra"
+        ),
+        border_radius=10,
     )
     state = ft.Text(f"Estado inicial: {initial_state['descripcion']}")
 
     def submit() -> None:
-        if not all(control.value.strip() for control in (codigo, book, branch)):
+        if not all(control.value.strip() for control in (codigo, cantidad)):
             notify(app.page, "Completá todos los campos.", True)
+            return
+        if not book.value:
+            notify(app.page, "Seleccioná un libro de la lista.", True)
+            return
+        if not any(str(item["id"]) == book.value for item in books):
+            notify(app.page, "Seleccioná un libro de las opciones disponibles.", True)
+            return
+        if not branch.value:
+            notify(app.page, "Seleccioná la sede.", True)
+            return
+        try:
+            quantity = int(cantidad.value)
+            if quantity < 1 or quantity > 500:
+                raise ValueError
+        except ValueError:
+            notify(app.page, "La cantidad debe ser un número entre 1 y 500.", True)
             return
         if not estado_fisico.value:
             notify(app.page, "Seleccioná el estado físico.", True)
             return
         try:
-            selected_book = _resolve_reference(
-                book.value, books, "titulo", "libro"
-            )
-            selected_branch = _resolve_reference(
-                branch.value, sedes, "nombre", "sede"
-            )
-            if not selected_branch.get("activa", False):
-                raise ValueError("La sede seleccionada no está activa.")
+            selected_book_id = int(book.value)
             app.api.request(
                 "/api/ejemplar",
                 "POST",
                 {
                     "codigo": codigo.value.strip(),
+                    "cantidad": quantity,
                     "estado_fisico": estado_fisico.value,
                     "estado_ejemplar_id": initial_state["id"],
-                    "sede_id": selected_branch["id"],
-                    "libro_id": selected_book["id"],
+                    "sede_id": int(branch.value),
+                    "libro_id": selected_book_id,
                 },
             )
         except ValueError as error:
@@ -270,13 +308,18 @@ def _new_ejemplar(app: LibraryApp) -> None:
             notify(app.page, str(error), True)
             return
         app.page.pop_dialog()
-        notify(app.page, "Ejemplar registrado correctamente.")
+        notify(
+            app.page,
+            f"{quantity} ejemplar(es) registrado(s) correctamente."
+            if quantity > 1
+            else "Ejemplar registrado correctamente.",
+        )
         app.navigate("Ejemplares")
 
     open_form(
         app.page,
         "Registrar ejemplar",
-        [codigo, estado_fisico, book, branch, state],
+        [codigo, cantidad, estado_fisico, book, branch, state],
         submit,
     )
 

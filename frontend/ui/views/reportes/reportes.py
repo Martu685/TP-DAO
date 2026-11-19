@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import flet as ft
+from datetime import date
 
 from frontend.api.client import ApiError
 from frontend.ui.components import card, data_table, empty_state, section_header
@@ -48,15 +49,26 @@ def build(app: LibraryApp) -> ft.Control:
         columns = list(dict.fromkeys(key for row in rows for key in row))
         if not columns:
             table.content = empty_state(
-                "No hay datos para este reporte.", ft.Icons.QUERY_STATS_OUTLINED
+                (
+                    "Todavía no hay préstamos ni reservas para calcular las solicitudes."
+                    if endpoint == "/api/reportes/libros-mas-solicitados"
+                    else "No hay datos para este reporte."
+                ),
+                ft.Icons.QUERY_STATS_OUTLINED,
             )
         else:
             table.content = data_table(
-                [column.replace("_", " ").capitalize() for column in columns],
+                [_column_label(column) for column in columns],
                 [
-                    [_cell_text(row[column]) for column in columns]
+                    [_cell_text(column, row[column]) for column in columns]
                     for row in rows
                 ],
+                expand=False,
+            )
+            table.content = ft.Row(
+                [table.content],
+                scroll=ft.ScrollMode.AUTO,
+                vertical_alignment=ft.CrossAxisAlignment.START,
             )
         app.page.update()
 
@@ -76,9 +88,38 @@ def build(app: LibraryApp) -> ft.Control:
     )
 
 
-def _cell_text(value: Any) -> ft.Text:
+def _column_label(column: str) -> str:
+    labels = {
+        "prestamo_id": "Préstamo",
+        "ejemplar_id": "Ejemplar",
+        "libro_id": "Libro ID",
+        "codigo_ejemplar": "Código",
+        "socio_id": "Socio",
+        "sede_origen_id": "Sede origen",
+        "sede_destino_id": "Sede destino",
+        "fecha_inicio": "Inicio",
+        "fecha_vencimiento": "Vencimiento",
+        "fecha_emision": "Emisión",
+        "fecha_recepcion": "Recepción",
+        "tiempo_promedio_dias": "Promedio (días)",
+        "tasa_envios_exitosos": "Envíos exitosos (%)",
+        "promedio_transito_dias": "Tránsito promedio (días)",
+    }
+    return labels.get(column, column.replace("_", " ").capitalize())
+
+
+def _cell_text(column: str, value: Any) -> ft.Text:
     if isinstance(value, list):
         display_value = ", ".join(str(item) for item in value)
+    elif value is None:
+        display_value = "—"
+    elif column.startswith("fecha_"):
+        try:
+            display_value = date.fromisoformat(str(value)[:10]).strftime("%d/%m/%Y")
+        except ValueError:
+            display_value = str(value)
+    elif column.endswith("_id") and isinstance(value, int):
+        display_value = f"#{value}"
     else:
-        display_value = str(value) if value is not None else "—"
-    return ft.Text(display_value)
+        display_value = str(value)
+    return ft.Text(display_value, no_wrap=True)

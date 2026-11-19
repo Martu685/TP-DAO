@@ -135,13 +135,17 @@ def release_exemplar_to_reservation(db: Session, exemplar, loan_id=None):
             and normalize(exemplar.estado_fisico) not in {"extraviado", "destruido"}
         ):
             set_exemplar_state(db, exemplar, "Reservado")
+            title = exemplar.libro.titulo if exemplar.libro else "Libro sin título"
             estado_subject.notify(
                 PrestamoEstadoEvent(
                     prestamo_id=loan_id,
                     estado_anterior="Disponible",
                     estado_nuevo="Reservado",
                     socio_id=reservation.socio_id,
-                    mensaje=f"El ejemplar {exemplar.codigo} reservado está disponible para retirar.",
+                    mensaje=(
+                        f"El libro «{title}» que reservaste "
+                        "está disponible para retirar."
+                    ),
                 ),
                 db,
             )

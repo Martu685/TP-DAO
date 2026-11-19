@@ -100,11 +100,20 @@ def report_fines(db: Session = Depends(get_db)):
 def report_most_requested_books(db: Session = Depends(get_db)):
     requested = Counter()
     for loan in db.query(PrestamoModel).all():
-        if loan.ejemplar:
+        if (
+            loan.ejemplar
+            and (
+                loan.estado is None
+                or normalize(loan.estado.descripcion) not in {"cancelado", "cancelada"}
+            )
+        ):
             requested[loan.ejemplar.libro_id] += 1
     for reservation in db.query(ReservaModel).all():
         state = reservation.estado
-        if state is None or normalize(state.descripcion) != "cancelada":
+        if (
+            reservation.ejemplar
+            and (state is None or normalize(state.descripcion) != "cancelada")
+        ):
             requested[reservation.ejemplar.libro_id] += 1
 
     books = {book.id: book for book in db.query(LibroModel).all()}

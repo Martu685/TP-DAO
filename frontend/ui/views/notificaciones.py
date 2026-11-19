@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import flet as ft
@@ -33,7 +34,7 @@ def build(app: LibraryApp) -> ft.Control:
                 headers = ["Fecha", "Canal", "Mensaje"]
                 rows = [
                     [
-                        ft.Text(str(notification["fecha"])),
+                        ft.Text(_format_notification_date(notification["fecha"])),
                         ft.Text(notification["canal"]),
                         ft.Text(notification["mensaje"]),
                     ]
@@ -83,3 +84,11 @@ def build(app: LibraryApp) -> ft.Control:
         expand=True,
         scroll=ft.ScrollMode.AUTO,
     )
+
+
+def _format_notification_date(value: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return str(value)
+    return parsed.strftime("%d/%m/%Y %H:%M")

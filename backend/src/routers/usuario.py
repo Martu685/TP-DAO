@@ -12,7 +12,7 @@ from src.auth import (
     verify_password,
 )
 from src.database import get_db
-from src.models import SocioModel, UsuarioModel
+from src.models import SedeModel, SocioModel, UsuarioModel
 from src.schemas import APIModel
 
 
@@ -33,6 +33,7 @@ class UsuarioResponse(APIModel):
     email: str
     rol: str
     socio_id: int | None
+    sede_id: int | None = None
 
 
 class LoginSchema(APIModel):
@@ -51,6 +52,7 @@ class EquipoSchema(APIModel):
     email: str
     password: str = Field(min_length=8, max_length=128)
     rol: str = "bibliotecario"
+    sede_id: int | None = None
 
 
 def _normalize_email(email: str) -> str:
@@ -60,16 +62,23 @@ def _normalize_email(email: str) -> str:
     return normalized
 
 
-def _create_staff(email: str, password: str, role: str, db: Session):
+def _create_staff(
+    email: str, password: str, role: str, db: Session, sede_id: int | None = None
+):
     normalized_email = _normalize_email(email)
     if role not in {"bibliotecario", "admin"}:
         raise HTTPException(status_code=422, detail="El rol debe ser bibliotecario o admin")
+    if sede_id is not None:
+        branch = db.get(SedeModel, sede_id)
+        if branch is None or not branch.activa:
+            raise HTTPException(status_code=422, detail="La sede no existe o está inactiva")
     if db.query(UsuarioModel).filter(UsuarioModel.email == normalized_email).first():
         raise HTTPException(status_code=409, detail="Ya existe una cuenta con ese email")
     user = UsuarioModel(
         email=normalized_email,
         password_hash=hash_password(password),
         rol=role,
+        sede_id=sede_id,
         activo=True,
     )
     db.add(user)
@@ -119,7 +128,9 @@ def create_staff_user(
     account: EquipoSchema,
     db: Session = Depends(get_db),
 ):
-    return _create_staff(account.email, account.password, account.rol, db)
+    return _create_staff(
+        account.email, account.password, account.rol, db, account.sede_id
+    )
 
 
 @router.post("/login", response_model=LoginResponse)

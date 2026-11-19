@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import Field
 from src.auth import get_current_user, require_roles
 from src.database import get_db
 from src.models import EjemplarModel
@@ -36,6 +37,10 @@ class EjemplarSchema(APIModel):
     sede_id: int
     libro_id: int
 
+
+class CrearEjemplaresSchema(EjemplarSchema):
+    cantidad: int = Field(default=1, ge=1, le=500)
+
 class EjemplarResponse(EjemplarSchema):
     id: int
 
@@ -45,8 +50,9 @@ class EjemplarResponse(EjemplarSchema):
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_roles("bibliotecario", "admin"))],
 )
-def create_ejemplar(ejemplar: EjemplarSchema, db: Session = Depends(get_db)):
+def create_ejemplar(ejemplar: CrearEjemplaresSchema, db: Session = Depends(get_db)):
     data = ejemplar.model_dump()
+    cantidad = data.pop("cantidad")
     try:
         require_active_branch(db, data["sede_id"])
         if db.get(LibroModel, data["libro_id"]) is None:
@@ -58,11 +64,30 @@ def create_ejemplar(ejemplar: EjemplarSchema, db: Session = Depends(get_db)):
     except BusinessRuleError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
-    db_ejemplar = EjemplarModel(**data)
-    db.add(db_ejemplar)
+    base_code = data["codigo"].strip()
+    codes = (
+        [base_code]
+        if cantidad == 1
+        else [f"{base_code}-{number}" for number in range(1, cantidad + 1)]
+    )
+    existing_codes = {
+        code
+        for (code,) in db.query(EjemplarModel.codigo)
+        .filter(EjemplarModel.codigo.in_(codes))
+        .all()
+    }
+    if existing_codes:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya existe un ejemplar con el código {sorted(existing_codes)[0]}",
+        )
+    db_ejemplares = [
+        EjemplarModel(**{**data, "codigo": code}) for code in codes
+    ]
+    db.add_all(db_ejemplares)
     db.commit()
-    db.refresh(db_ejemplar)
-    return db_ejemplar
+    db.refresh(db_ejemplares[0])
+    return db_ejemplares[0]
 
 @router.get("", response_model=List[EjemplarResponse])
 def get_ejemplares(db: Session = Depends(get_db)):

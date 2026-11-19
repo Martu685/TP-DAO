@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from src.database import engine, Base
+from src.database import engine, Base, ensure_user_branch_column
 from src.bootstrap import initialize_admin_account, initialize_reference_data
 from src.routers import (
     sede_router,
@@ -22,6 +22,7 @@ from src.routers import (
 )
 
 Base.metadata.create_all(bind=engine)
+ensure_user_branch_column()
 initialize_reference_data()
 initialize_admin_account()
 
