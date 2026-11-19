@@ -61,11 +61,10 @@ def build(app: LibraryApp) -> ft.Control:
                     ft.Container(
                         content=section_header(
                             "Mis notificaciones" if is_member else "Notificaciones",
-                            "Avisos generados automáticamente cuando cambia el estado "
-                            "de tus préstamos."
+                            "Avisos automáticos de cambios en tus reservas y préstamos."
                             if is_member
-                            else "Avisos generados automáticamente por los cambios de "
-                            "estado de los préstamos.",
+                            else "Avisos automáticos por cambios de estado en reservas "
+                            "y préstamos.",
                         ),
                         expand=True,
                     ),

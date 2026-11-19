@@ -20,6 +20,7 @@ from src.library_rules import (
     validate_loan_state_id,
 )
 from src.prestamo_state import InvalidPrestamoTransition, validate_initial_prestamo_state
+from src.prestamo_observer import notify_reservation_state_change
 from src.prestamo_workflow import PrestamoStateNotFound, change_prestamo_state
 from src.routers.prestamo import PrestamoBaseSchema
 
@@ -65,9 +66,19 @@ def create_prestamo_local(prestamo: PrestamoLocalSchema, db: Session = Depends(g
             db, data["socio_id"], data["sede_origen_id"], data["ejemplar_id"]
         )
         if ready_reservation:
-            ready_reservation.estado_reserva_id = get_status_by_name(
+            reservation_state = get_status_by_id(
+                db, EstadoReservaModel, ready_reservation.estado_reserva_id
+            )
+            attended_state = get_status_by_name(
                 db, EstadoReservaModel, "Atendida"
-            ).id
+            )
+            ready_reservation.estado_reserva_id = attended_state.id
+            notify_reservation_state_change(
+                ready_reservation,
+                reservation_state.descripcion,
+                attended_state.descripcion,
+                db,
+            )
         set_exemplar_state(db, exemplar, "Prestado")
     except (BusinessRuleError, InvalidPrestamoTransition) as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

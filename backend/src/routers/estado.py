@@ -65,7 +65,9 @@ def create_estado_prestamo(estado: EstadoSchema, db: Session = Depends(get_db)):
 @router.get("/reserva", response_model=List[EstadoResponse])
 def get_estados_reserva(db: Session = Depends(get_db)):
     return _list_states(
-        db, EstadoReservaModel, {"pendiente", "aceptada", "rechazada", "cancelada"}
+        db,
+        EstadoReservaModel,
+        {"pendiente", "aceptada", "rechazada", "cancelada", "atendida"},
     )
 
 @router.post(
@@ -79,7 +81,7 @@ def create_estado_reserva(estado: EstadoSchema, db: Session = Depends(get_db)):
         db,
         EstadoReservaModel,
         estado,
-        {"pendiente", "aceptada", "rechazada", "cancelada"},
+        {"pendiente", "aceptada", "rechazada", "cancelada", "atendida"},
     )
 
 @router.get("/remito", response_model=List[EstadoResponse])

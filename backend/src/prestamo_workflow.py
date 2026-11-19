@@ -4,7 +4,7 @@ from src.library_rules import (
     set_exemplar_state,
 )
 from src.models import EstadoPrestamoModel
-from src.prestamo_observer import PrestamoEstadoEvent, prestamo_subject
+from src.prestamo_observer import PrestamoEstadoEvent, estado_subject
 from src.prestamo_state import InvalidPrestamoTransition, validate_prestamo_transition
 
 
@@ -42,7 +42,7 @@ def change_prestamo_state(
     elif target_name == "devuelto":
         set_exemplar_state(db, prestamo.ejemplar, "Disponible")
 
-    prestamo_subject.notify(
+    estado_subject.notify(
         PrestamoEstadoEvent(
             prestamo_id=prestamo.id,
             estado_anterior=current_state.descripcion,

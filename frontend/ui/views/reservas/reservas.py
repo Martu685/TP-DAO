@@ -10,6 +10,7 @@ from frontend.ui import theme
 from frontend.ui.components import (
     card,
     data_table,
+    empty_state,
     notify,
     open_form,
     section_header,
@@ -21,9 +22,10 @@ if TYPE_CHECKING:
 
 
 def build(app: LibraryApp) -> ft.Control:
+    is_member = bool(app.current_user and app.current_user["rol"] == "socio")
     reservations = app.api.request("/api/reserva")
     states = app.api.request("/api/estado/reserva")
-    members = app.api.request("/api/socio")
+    members = [] if is_member else app.api.request("/api/socio")
     copies = app.api.request("/api/ejemplar")
     branches = app.api.request("/api/sede")
     books = app.api.request("/api/libro")
@@ -44,7 +46,9 @@ def build(app: LibraryApp) -> ft.Control:
     book_names = {book["id"]: book["titulo"] for book in books}
 
     search = text_input(
-        "Buscar por socio, ejemplar o estado",
+        "Buscar por ejemplar o estado"
+        if is_member
+        else "Buscar por socio, ejemplar o estado",
         prefix_icon=ft.Icons.SEARCH,
     )
     table = ft.Container()
@@ -59,7 +63,9 @@ def build(app: LibraryApp) -> ft.Control:
             )
             searchable = " ".join(
                 [
-                    member_names.get(reservation["socio_id"], ""),
+                    ""
+                    if is_member
+                    else member_names.get(reservation["socio_id"], ""),
                     copy.get("codigo", ""),
                     book_names.get(copy.get("libro_id"), ""),
                     branch_names.get(reservation["sede_id"], ""),
@@ -67,16 +73,21 @@ def build(app: LibraryApp) -> ft.Control:
                 ]
             )
             if term in searchable.casefold():
-                filtered.append(
-                    [
-                        ft.Text(f"#{reservation['id']}", weight=ft.FontWeight.W_500),
-                        ft.Text(reservation["fecha"]),
+                row = [
+                    ft.Text(f"#{reservation['id']}", weight=ft.FontWeight.W_500),
+                    ft.Text(reservation["fecha"]),
+                ]
+                if not is_member:
+                    row.append(
                         ft.Text(
                             member_names.get(
                                 reservation["socio_id"],
                                 f"Socio #{reservation['socio_id']}",
                             )
                         ),
+                    )
+                row.extend(
+                    [
                         ft.Text(
                             f"{copy.get('codigo', '—')} · "
                             f"{book_names.get(copy.get('libro_id'), 'Libro')}",
@@ -88,6 +99,10 @@ def build(app: LibraryApp) -> ft.Control:
                             )
                         ),
                         ft.Text(state_name),
+                    ]
+                )
+                if not is_member:
+                    row.append(
                         ft.Row(
                             _reservation_actions(
                                 app,
@@ -96,21 +111,23 @@ def build(app: LibraryApp) -> ft.Control:
                             ),
                             spacing=4,
                             wrap=True,
-                        ),
-                    ]
-                )
+                        )
+                    )
+                filtered.append(row)
 
-        table.content = data_table(
-            [
-                "N.º",
-                "Fecha",
-                "Socio",
-                "Ejemplar",
-                "Sede",
-                "Estado",
-                "Acciones",
-            ],
-            filtered,
+        headers = ["N.º", "Fecha"]
+        if not is_member:
+            headers.append("Socio")
+        headers.extend(["Ejemplar", "Sede", "Estado"])
+        if not is_member:
+            headers.append("Acciones")
+        table.content = (
+            empty_state(
+                "Todavía no tenés reservas registradas.",
+                ft.Icons.BOOKMARK_OUTLINED,
+            )
+            if is_member and not filtered
+            else data_table(headers, filtered)
         )
         app.page.update()
 
@@ -120,10 +137,12 @@ def build(app: LibraryApp) -> ft.Control:
     return ft.Column(
         [
             section_header(
-                "Reservas",
-                "Administrá reservas y su transición de estado.",
-                "Nueva reserva",
-                lambda _: _new_reservation(app),
+                "Mis reservas" if is_member else "Reservas",
+                "Consultá tus reservas y sus estados."
+                if is_member
+                else "Administrá reservas y su transición de estado.",
+                None if is_member else "Nueva reserva",
+                None if is_member else lambda _: _new_reservation(app),
             ),
             card(search, 12),
             card(table, 8),

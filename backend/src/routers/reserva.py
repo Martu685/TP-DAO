@@ -15,6 +15,7 @@ from src.library_rules import (
     validate_reservation,
 )
 from src.models import EstadoReservaModel, ReservaModel, UsuarioModel
+from src.prestamo_observer import notify_reservation_state_change
 from src.schemas import APIModel
 
 router = APIRouter(
@@ -148,6 +149,13 @@ def update_reserva(
         release_exemplar_to_reservation(db, db_reserva.ejemplar)
     for key, value in data.items():
         setattr(db_reserva, key, value)
+    if current_name != target_name:
+        notify_reservation_state_change(
+            db_reserva,
+            current_state.descripcion,
+            target_state.descripcion,
+            db,
+        )
     db.commit()
     db.refresh(db_reserva)
     return db_reserva
@@ -180,6 +188,12 @@ def delete_reserva(
         raise HTTPException(status_code=500, detail=str(error)) from error
 
     reserva.estado_reserva_id = cancelled_state.id
+    notify_reservation_state_change(
+        reserva,
+        current_state.descripcion,
+        cancelled_state.descripcion,
+        db,
+    )
     release_exemplar_to_reservation(db, reserva.ejemplar)
     db.commit()
     return None

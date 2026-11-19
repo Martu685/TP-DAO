@@ -28,14 +28,12 @@ NAV_ITEMS = (
     ("Libros", ft.Icons.MENU_BOOK_OUTLINED),
     ("Socios", ft.Icons.GROUP_OUTLINED),
     ("Usuarios", ft.Icons.PERSON_OUTLINED),
-    ("Historial de lecturas", ft.Icons.HISTORY_OUTLINED),
     ("Sedes", ft.Icons.LOCATION_ON_OUTLINED),
     ("Ejemplares", ft.Icons.INVENTORY_2_OUTLINED),
     ("Remitos", ft.Icons.LOCAL_SHIPPING_OUTLINED),
     ("Reservas", ft.Icons.BOOKMARK_OUTLINED),
     ("Préstamos", ft.Icons.SWAP_HORIZ_OUTLINED),
     ("Reportes", ft.Icons.ANALYTICS_OUTLINED),
-    ("Notificaciones", ft.Icons.NOTIFICATIONS_OUTLINED),
 )
 
 
@@ -235,6 +233,7 @@ class LibraryApp:
             "Ejemplares": lambda: ejemplares.build(self),
             "Remitos": lambda: remitos.build(self),
             "Reservas": lambda: reservas.build(self),
+            "Mis reservas": lambda: reservas.build(self),
             "Préstamos": lambda: prestamos.build(self),
             "Mis préstamos": lambda: mis_prestamos.build(self),
             "Reportes": lambda: reportes.build(self),
@@ -249,6 +248,7 @@ class LibraryApp:
             self.visible_nav_items = (
                 ("Historial de lecturas", ft.Icons.HISTORY_OUTLINED),
                 ("Mis préstamos", ft.Icons.SWAP_HORIZ_OUTLINED),
+                ("Mis reservas", ft.Icons.BOOKMARK_OUTLINED),
                 ("Notificaciones", ft.Icons.NOTIFICATIONS_OUTLINED),
             )
         else:

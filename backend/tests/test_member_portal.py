@@ -261,7 +261,9 @@ class MemberPortalTests(unittest.TestCase):
             current_user=self.member_user,
         )
         self.assertEqual(len(rows), 2)
-        self.assertIn("cambió de Activo a Vencido", rows[0].mensaje)
+        self.assertTrue(
+            any("cambió de Activo a Vencido" in row.mensaje for row in rows)
+        )
 
 
 if __name__ == "__main__":

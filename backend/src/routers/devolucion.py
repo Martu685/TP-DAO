@@ -22,7 +22,7 @@ from src.models import (
     PrestamoLocalModel,
     PrestamoModel,
 )
-from src.prestamo_observer import PrestamoEstadoEvent, prestamo_subject
+from src.prestamo_observer import PrestamoEstadoEvent, estado_subject
 from src.prestamo_workflow import change_prestamo_state
 from src.schemas import APIModel
 
@@ -239,7 +239,7 @@ def delete_devolucion(devolucion_id: int, db: Session = Depends(get_db)):
             loan.multa_id = None
             db.flush()
             db.delete(fine)
-        prestamo_subject.notify(
+        estado_subject.notify(
             PrestamoEstadoEvent(
                 prestamo_id=loan.id,
                 estado_anterior=current_state.descripcion,

@@ -16,6 +16,7 @@ from src.models import (
     PrestamoInterbibliotecarioModel,
     RemitoModel,
     SedeModel,
+    UsuarioModel,
 )
 from src.routers import detalle_remito
 
@@ -82,6 +83,14 @@ class DetailRemitoTests(unittest.TestCase):
         )
         self.db.add_all([self.copy, self.remit])
         self.db.flush()
+        self.admin = UsuarioModel(
+            email="admin@example.com",
+            password_hash="unused",
+            rol="admin",
+            activo=True,
+        )
+        self.db.add(self.admin)
+        self.db.flush()
 
         self.loan = PrestamoInterbibliotecarioModel(
             fecha_inicio=__import__("datetime").date.today(),
@@ -105,10 +114,11 @@ class DetailRemitoTests(unittest.TestCase):
                 remito_id=self.remit.id,
                 ejemplar_id=self.copy.id,
             ),
+            self.admin,
             self.db,
         )
 
-        found = detalle_remito.get_detalle_remito(created.id, self.db)
+        found = detalle_remito.get_detalle_remito(created.id, self.admin, self.db)
         self.assertEqual(found.id, created.id)
 
         with self.assertRaises(HTTPException) as error:
@@ -118,11 +128,12 @@ class DetailRemitoTests(unittest.TestCase):
                     remito_id=self.remit.id,
                     ejemplar_id=self.copy.id,
                 ),
+                self.admin,
                 self.db,
             )
         self.assertEqual(error.exception.status_code, 422)
 
-        detalle_remito.delete_detalle_remito(created.id, self.db)
+        detalle_remito.delete_detalle_remito(created.id, self.admin, self.db)
         self.assertIsNone(self.db.get(DetalleRemitoModel, created.id))
 
     def test_detail_cannot_be_deleted_after_dispatch(self):
@@ -131,13 +142,14 @@ class DetailRemitoTests(unittest.TestCase):
                 remito_id=self.remit.id,
                 ejemplar_id=self.copy.id,
             ),
+            self.admin,
             self.db,
         )
         self.remit.estado_remito_id = self.received.id
         self.db.commit()
 
         with self.assertRaises(HTTPException) as error:
-            detalle_remito.delete_detalle_remito(created.id, self.db)
+            detalle_remito.delete_detalle_remito(created.id, self.admin, self.db)
 
         self.assertEqual(error.exception.status_code, 409)
 

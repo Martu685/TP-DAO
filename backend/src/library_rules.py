@@ -13,7 +13,7 @@ from src.models import (
     SedeModel,
     SocioModel,
 )
-from src.prestamo_observer import PrestamoEstadoEvent, prestamo_subject
+from src.prestamo_observer import PrestamoEstadoEvent, estado_subject
 
 
 class BusinessRuleError(ValueError):
@@ -135,7 +135,7 @@ def release_exemplar_to_reservation(db: Session, exemplar, loan_id=None):
             and normalize(exemplar.estado_fisico) not in {"extraviado", "destruido"}
         ):
             set_exemplar_state(db, exemplar, "Reservado")
-            prestamo_subject.notify(
+            estado_subject.notify(
                 PrestamoEstadoEvent(
                     prestamo_id=loan_id,
                     estado_anterior="Disponible",
