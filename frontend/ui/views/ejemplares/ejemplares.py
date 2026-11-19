@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
 
 
+PHYSICAL_CONDITIONS = ("Bueno", "Dañado", "Extraviado", "Destruido")
+
+
 def build(app: LibraryApp) -> ft.Control:
     ejemplares = app.api.request("/api/ejemplar")
     books = app.api.request("/api/libro")
@@ -205,27 +208,15 @@ def _new_ejemplar(app: LibraryApp) -> None:
         notify(app.page, str(error), True)
         return
 
-    allowed_states = {
-        "disponible",
-        "no disponible",
-        "danado",
-        "extraviado",
-        "destruido",
-    }
-    initial_states = [
-        state
-        for state in estados
-        if _normalize_text(state["descripcion"]) in allowed_states
-    ]
     initial_state = next(
         (
             state
-            for state in initial_states
+            for state in estados
             if _normalize_text(state["descripcion"]) == "disponible"
         ),
         None,
     )
-    if initial_state is None:
+    if not initial_state:
         notify(
             app.page,
             "No se encontró el estado inicial 'Disponible' en la API.",
@@ -234,7 +225,7 @@ def _new_ejemplar(app: LibraryApp) -> None:
         return
 
     codigo = text_input("Código")
-    estado_fisico = text_input("Estado físico", value="Bueno")
+    estado_fisico = _physical_condition_input()
     book = text_input(
         "Libro (nombre exacto o ID)",
         hint_text="Ingresá el título exacto o el ID del libro",
@@ -243,25 +234,14 @@ def _new_ejemplar(app: LibraryApp) -> None:
         "Sede (nombre exacto o ID)",
         hint_text="Ingresá el nombre exacto o el ID de la sede",
     )
-    state = ft.Dropdown(
-        label="Estado del ejemplar",
-        value=str(initial_state["id"]),
-        options=[
-            ft.dropdown.Option(str(item["id"]), item["descripcion"])
-            for item in initial_states
-        ],
-        border_radius=10,
-    )
+    state = ft.Text(f"Estado inicial: {initial_state['descripcion']}")
 
     def submit() -> None:
-        if not all(
-            control.value.strip()
-            for control in (codigo, estado_fisico, book, branch)
-        ):
+        if not all(control.value.strip() for control in (codigo, book, branch)):
             notify(app.page, "Completá todos los campos.", True)
             return
-        if not state.value:
-            notify(app.page, "Seleccioná el estado del ejemplar.", True)
+        if not estado_fisico.value:
+            notify(app.page, "Seleccioná el estado físico.", True)
             return
         try:
             selected_book = _resolve_reference(
@@ -277,8 +257,8 @@ def _new_ejemplar(app: LibraryApp) -> None:
                 "POST",
                 {
                     "codigo": codigo.value.strip(),
-                    "estado_fisico": estado_fisico.value.strip(),
-                    "estado_ejemplar_id": int(state.value),
+                    "estado_fisico": estado_fisico.value,
+                    "estado_ejemplar_id": initial_state["id"],
                     "sede_id": selected_branch["id"],
                     "libro_id": selected_book["id"],
                 },
@@ -308,7 +288,7 @@ def _edit_ejemplar(
     sedes: list[dict[str, Any]],
 ) -> None:
     codigo = text_input("Código", value=ejemplar["codigo"])
-    estado_fisico = text_input("Estado físico", value=ejemplar["estado_fisico"])
+    estado_fisico = _physical_condition_input(ejemplar["estado_fisico"])
     sede = ft.Dropdown(
         label="Sede",
         value=str(ejemplar["sede_id"]),
@@ -329,8 +309,11 @@ def _edit_ejemplar(
     )
 
     def submit() -> None:
-        if not codigo.value.strip() or not estado_fisico.value.strip():
+        if not codigo.value.strip():
             notify(app.page, "Completá todos los campos.", True)
+            return
+        if not estado_fisico.value:
+            notify(app.page, "Seleccioná un estado físico válido.", True)
             return
         if not all(control.value for control in (sede, libro)):
             notify(app.page, "Seleccioná la sede y el libro.", True)
@@ -341,7 +324,7 @@ def _edit_ejemplar(
                 "PUT",
                 {
                     "codigo": codigo.value.strip(),
-                    "estado_fisico": estado_fisico.value.strip(),
+                    "estado_fisico": estado_fisico.value,
                     "estado_ejemplar_id": ejemplar["estado_ejemplar_id"],
                     "sede_id": int(sede.value),
                     "libro_id": int(libro.value),
@@ -404,6 +387,26 @@ def _normalize_text(value: str) -> str:
         character
         for character in decomposed
         if not unicodedata.combining(character)
+    )
+
+
+def _physical_condition_input(value: str = "Bueno") -> ft.Dropdown:
+    selected = next(
+        (
+            condition
+            for condition in PHYSICAL_CONDITIONS
+            if _normalize_text(condition) == _normalize_text(value)
+        ),
+        None,
+    )
+    return ft.Dropdown(
+        label="Estado físico",
+        value=selected,
+        options=[
+            ft.dropdown.Option(condition, condition)
+            for condition in PHYSICAL_CONDITIONS
+        ],
+        border_radius=10,
     )
 
 

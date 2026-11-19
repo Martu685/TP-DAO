@@ -12,18 +12,24 @@ class ApiClient:
     def __init__(self, base_url: str, timeout: float = 10) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.access_token: str | None = None
 
     def request(
         self,
         path: str,
         method: str = "GET",
         data: dict[str, Any] | None = None,
+        access_token: str | None = None,
     ) -> Any:
         body = json.dumps(data).encode("utf-8") if data is not None else None
+        headers = {"Content-Type": "application/json"}
+        token = access_token if access_token is not None else self.access_token
+        if token is not None:
+            headers["Authorization"] = f"Bearer {token}"
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method=method,
         )
         try:

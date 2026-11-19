@@ -134,7 +134,7 @@ def _register(app: LibraryApp, prestamo: dict[str, Any]) -> None:
         value="Bueno",
         options=[
             ft.dropdown.Option(value, value)
-            for value in ("Bueno", "Regular", "Dañado", "Extraviado", "Destruido")
+            for value in ("Bueno", "Dañado", "Extraviado", "Destruido")
         ],
         border_radius=10,
     )

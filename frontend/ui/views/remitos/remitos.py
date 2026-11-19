@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from datetime import date
 from typing import TYPE_CHECKING, Any
 
@@ -119,7 +120,7 @@ def _remito_actions(
     copies_by_id: dict[int, dict[str, Any]],
     book_names: dict[int, str],
 ) -> ft.Row:
-    normalized_status = status_name.casefold()
+    normalized_status = _normalize_status(status_name)
     actions: list[ft.Control] = [
         ft.TextButton(
             "Detalle",
@@ -148,7 +149,7 @@ def _remito_actions(
                 ),
             )
         )
-    elif normalized_status in {"en tránsito", "incidencia"}:
+    elif normalized_status in {"en transito", "incidencia"}:
         actions.append(
             ft.TextButton(
                 "Recibir",
@@ -228,7 +229,7 @@ def _show_incidences(
     actions: list[ft.Control] = [
         ft.TextButton("Cerrar", on_click=lambda _: app.page.pop_dialog())
     ]
-    if status_name.casefold() == "en tránsito":
+    if _normalize_status(status_name) == "en transito":
         actions.insert(
             0,
             ft.FilledButton(
@@ -331,7 +332,7 @@ def _new_remito(app: LibraryApp) -> None:
     pending_state_ids = {
         state["id"]
         for state in loan_states
-        if state["descripcion"].casefold() == "pendiente"
+        if _normalize_status(state["descripcion"]) == "pendiente"
     }
     eligible_loans = [
         loan
@@ -445,3 +446,12 @@ def _new_remito(app: LibraryApp) -> None:
         actions_alignment=ft.MainAxisAlignment.END,
     )
     app.page.show_dialog(dialog)
+
+
+def _normalize_status(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", value.strip().casefold())
+    return "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    )

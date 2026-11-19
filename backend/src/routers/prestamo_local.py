@@ -3,7 +3,12 @@ from sqlalchemy.orm import Session
 from typing import List
 from src.auth import require_roles
 from src.database import get_db
-from src.models import EstadoPrestamoModel, EstadoReservaModel, PrestamoLocalModel
+from src.models import (
+    EstadoPrestamoModel,
+    EstadoReservaModel,
+    PrestamoLocalModel,
+    UsuarioModel,
+)
 from src.library_rules import (
     BusinessRuleError,
     find_ready_reservation,
@@ -21,7 +26,6 @@ from src.routers.prestamo import PrestamoBaseSchema
 router = APIRouter(
     prefix="/api/prestamo-local",
     tags=["PrestamoLocal"],
-    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
 )
 
 # Subclase Pydantic que hereda de PrestamoBaseSchema
@@ -33,7 +37,12 @@ class PrestamoLocalResponse(PrestamoLocalSchema):
     id: int
     tipo_prestamo: str
 
-@router.post("", response_model=PrestamoLocalResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=PrestamoLocalResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def create_prestamo_local(prestamo: PrestamoLocalSchema, db: Session = Depends(get_db)):
     data = prestamo.model_dump()
     if any(data[key] is not None for key in ("fecha_devolucion", "multa_id", "devolucion_id")):
@@ -70,10 +79,27 @@ def create_prestamo_local(prestamo: PrestamoLocalSchema, db: Session = Depends(g
     return db_prestamo
 
 @router.get("", response_model=List[PrestamoLocalResponse])
-def get_prestamos_locales(db: Session = Depends(get_db)):
-    return db.query(PrestamoLocalModel).all()
+def get_prestamos_locales(
+    db: Session = Depends(get_db),
+    current_user: UsuarioModel = Depends(
+        require_roles("socio", "bibliotecario", "admin")
+    ),
+):
+    query = db.query(PrestamoLocalModel)
+    if current_user.rol == "socio":
+        if current_user.socio_id is None:
+            raise HTTPException(
+                status_code=403,
+                detail="La cuenta no está asociada a un socio",
+            )
+        query = query.filter(PrestamoLocalModel.socio_id == current_user.socio_id)
+    return query.all()
 
-@router.put("/{prestamo_id}", response_model=PrestamoLocalResponse)
+@router.put(
+    "/{prestamo_id}",
+    response_model=PrestamoLocalResponse,
+    dependencies=[Depends(require_roles("bibliotecario", "admin"))],
+)
 def update_prestamo_local(prestamo_id: int, prestamo_data: PrestamoLocalSchema, db: Session = Depends(get_db)):
     db_prestamo = db.query(PrestamoLocalModel).filter(PrestamoLocalModel.id == prestamo_id).first()
     if not db_prestamo:

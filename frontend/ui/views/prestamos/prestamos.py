@@ -381,12 +381,12 @@ def _new_prestamo(app: LibraryApp) -> None:
         for item in ejemplares
     ]
     initial_state = next(
-        (state for state in states if state["descripcion"].casefold() == "pendiente"),
+        (state for state in states if state["descripcion"].casefold() == "activo"),
         None,
     )
     if initial_state is None:
         notify(
-            app.page, "No se encontró el estado inicial 'Pendiente' en la API.", True
+            app.page, "No se encontró el estado inicial 'Activo' en la API.", True
         )
         return
 

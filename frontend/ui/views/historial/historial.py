@@ -14,16 +14,19 @@ if TYPE_CHECKING:
 
 def build(app: LibraryApp) -> ft.Control:
     history = app.api.request("/api/historial-lecturas")
-    socios = app.api.request("/api/socio")
+    is_member = bool(app.current_user and app.current_user["rol"] == "socio")
+    socios = [] if is_member else app.api.request("/api/socio")
     books = app.api.request("/api/libro")
     socios_by_id = {socio["id"]: socio for socio in socios}
     books_by_id = {book["id"]: book for book in books}
 
-    socio_filter = text_input(
-        "Buscar socio por nombre, DNI o email",
-        prefix_icon=ft.Icons.PERSON_SEARCH_OUTLINED,
-        expand=True,
-    )
+    socio_filter: ft.TextField | None = None
+    if not is_member:
+        socio_filter = text_input(
+            "Buscar socio por nombre, DNI o email",
+            prefix_icon=ft.Icons.PERSON_SEARCH_OUTLINED,
+            expand=True,
+        )
     book_filter = text_input(
         "Buscar libro por título, autor o ISBN",
         prefix_icon=ft.Icons.MENU_BOOK_OUTLINED,
@@ -33,7 +36,7 @@ def build(app: LibraryApp) -> ft.Control:
     table = ft.Container()
 
     def render_rows(_: Any = None) -> None:
-        socio_term = _normalize(socio_filter.value)
+        socio_term = _normalize(socio_filter.value) if socio_filter else ""
         book_term = _normalize(book_filter.value)
         matching = []
 
@@ -62,7 +65,11 @@ def build(app: LibraryApp) -> ft.Control:
                 matching.append((entry, socio, book))
 
         reader_count = len({entry["socio_id"] for entry, _, _ in matching})
-        summary.value = f"{len(matching)} lecturas · {reader_count} socios"
+        summary.value = (
+            f"{len(matching)} lecturas"
+            if is_member
+            else f"{len(matching)} lecturas · {reader_count} socios"
+        )
         if not history:
             table.content = empty_state(
                 "Todavía no hay lecturas registradas.",
@@ -74,9 +81,26 @@ def build(app: LibraryApp) -> ft.Control:
                 ft.Icons.SEARCH_OFF_OUTLINED,
             )
         else:
-            table.content = data_table(
-                ["Fecha", "Socio", "DNI", "Libro", "Préstamo"],
-                [
+            if is_member:
+                headers = ["Fecha", "Libro", "Préstamo"]
+                rows = [
+                    [
+                        ft.Text(entry["fecha"]),
+                        ft.Text(
+                            book.get("titulo", f"Libro #{entry['libro_id']}"),
+                            weight=ft.FontWeight.W_500,
+                        ),
+                        ft.Text(
+                            f"#{entry['prestamo_id']}"
+                            if entry.get("prestamo_id") is not None
+                            else "—"
+                        ),
+                    ]
+                    for entry, _, book in matching
+                ]
+            else:
+                headers = ["Fecha", "Socio", "DNI", "Libro", "Préstamo"]
+                rows = [
                     [
                         ft.Text(entry["fecha"]),
                         ft.Text(
@@ -95,24 +119,27 @@ def build(app: LibraryApp) -> ft.Control:
                         ),
                     ]
                     for entry, socio, book in matching
-                ],
-            )
+                ]
+            table.content = data_table(headers, rows)
         app.page.update()
 
-    socio_filter.on_change = render_rows
+    if socio_filter is not None:
+        socio_filter.on_change = render_rows
     book_filter.on_change = render_rows
     render_rows()
 
+    filters: list[ft.Control] = [book_filter]
+    if socio_filter is not None:
+        filters.insert(0, socio_filter)
     return ft.Column(
         [
             section_header(
-                "Historial de lecturas",
-                "Consultá los libros leídos por cada socio.",
+                "Mi historial de lecturas" if is_member else "Historial de lecturas",
+                "Consultá los libros asociados a tus préstamos devueltos."
+                if is_member
+                else "Consultá los libros leídos por cada socio.",
             ),
-            card(
-                ft.Row([socio_filter, book_filter], spacing=12),
-                12,
-            ),
+            card(ft.Row(filters, spacing=12), 12),
             summary,
             card(table, 8),
         ],
