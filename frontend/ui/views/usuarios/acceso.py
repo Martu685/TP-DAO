@@ -170,36 +170,50 @@ def build_registration(app: LibraryApp) -> ft.Control:
 
 
 def _auth_layout(form: ft.Control) -> ft.Container:
-    return ft.Container(
-        content=ft.Container(
-            content=card(
-                ft.Column(
+    auth_card = card(
+        ft.Column(
+            [
+                ft.Row(
                     [
-                        ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.AUTO_STORIES,
-                                    color=theme.ACCENT,
-                                    size=28,
-                                ),
-                                ft.Text(
-                                    "Biblioteca UTN",
-                                    size=19,
-                                    weight=ft.FontWeight.W_600,
-                                    color=theme.INK,
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            spacing=10,
+                        ft.Icon(
+                            ft.Icons.AUTO_STORIES,
+                            color=theme.ACCENT,
+                            size=28,
                         ),
-                        form,
+                        ft.Text(
+                            "Biblioteca UTN",
+                            size=19,
+                            weight=ft.FontWeight.W_600,
+                            color=theme.INK,
+                        ),
                     ],
-                    spacing=24,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    spacing=10,
                 ),
-                padding=28,
-            ),
-            width=460,
+                form,
+            ],
+            spacing=24,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            width=float("inf"),
         ),
-        alignment=ft.Alignment(0, 0),
+        padding=28,
+    )
+    auth_card.width = 460
+    return ft.Container(
+        content=ft.Column(
+            [
+                ft.Container(
+                    content=auth_card,
+                    width=460,
+                    alignment=ft.Alignment(0, 0),
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            expand=True,
+            width=float("inf"),
+            scroll=ft.ScrollMode.AUTO,
+        ),
         expand=True,
+        padding=ft.Padding.symmetric(horizontal=20, vertical=16),
     )
