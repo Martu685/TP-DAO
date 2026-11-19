@@ -56,5 +56,58 @@ def create_detalle_remito(detalle: DetalleRemitoSchema, db: Session = Depends(ge
     return db_detalle
 
 @router.get("", response_model=List[DetalleRemitoResponse])
-def get_detalles_remito(db: Session = Depends(get_db)):
-    return db.query(DetalleRemitoModel).all()
+def get_detalles_remito(
+    remito_id: int | None = None,
+    ejemplar_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(DetalleRemitoModel)
+    if remito_id is not None:
+        query = query.filter(DetalleRemitoModel.remito_id == remito_id)
+    if ejemplar_id is not None:
+        query = query.filter(DetalleRemitoModel.ejemplar_id == ejemplar_id)
+    return query.all()
+
+
+@router.get("/{detalle_id}", response_model=DetalleRemitoResponse)
+def get_detalle_remito(detalle_id: int, db: Session = Depends(get_db)):
+    detalle = db.get(DetalleRemitoModel, detalle_id)
+    if detalle is None:
+        raise HTTPException(status_code=404, detail="Detalle de remito no encontrado")
+    return detalle
+
+
+@router.put("/{detalle_id}", response_model=DetalleRemitoResponse)
+def update_detalle_remito(
+    detalle_id: int,
+    detalle_data: DetalleRemitoSchema,
+    db: Session = Depends(get_db),
+):
+    detalle = db.get(DetalleRemitoModel, detalle_id)
+    if detalle is None:
+        raise HTTPException(status_code=404, detail="Detalle de remito no encontrado")
+    raise HTTPException(
+        status_code=422,
+        detail="Los datos de un detalle no se pueden modificar; eliminelo y agreguelo nuevamente",
+    )
+
+
+@router.delete("/{detalle_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_detalle_remito(detalle_id: int, db: Session = Depends(get_db)):
+    detalle = db.get(DetalleRemitoModel, detalle_id)
+    if detalle is None:
+        raise HTTPException(status_code=404, detail="Detalle de remito no encontrado")
+
+    remito = db.get(RemitoModel, detalle.remito_id)
+    if remito is None:
+        raise HTTPException(status_code=409, detail="El detalle tiene un remito inexistente")
+    remito_state = db.get(EstadoRemitoModel, remito.estado_remito_id)
+    if remito_state is None or normalize(remito_state.descripcion) != "preparado":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se eliminan detalles de remitos Preparados",
+        )
+
+    db.delete(detalle)
+    db.commit()
+    return None

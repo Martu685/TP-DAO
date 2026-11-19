@@ -9,7 +9,12 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, base_url: str, timeout: float = 10) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 10,
+        access_token: str | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.access_token: str | None = None

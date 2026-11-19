@@ -7,6 +7,7 @@ from src.database import get_db
 from src.library_rules import (
     BusinessRuleError,
     get_status_by_id,
+    get_status_by_name,
     is_exemplar_available,
     normalize,
     release_exemplar_to_reservation,
@@ -67,6 +68,20 @@ def get_reservas(
     if current_user.rol == "socio":
         query = query.filter(ReservaModel.socio_id == current_user.socio_id)
     return query.all()
+
+
+@router.get("/{reserva_id}", response_model=ReservaResponse)
+def get_reserva(
+    reserva_id: int,
+    current_user: UsuarioModel = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    reserva = db.get(ReservaModel, reserva_id)
+    if reserva is None:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if current_user.rol == "socio" and reserva.socio_id != current_user.socio_id:
+        raise HTTPException(status_code=403, detail="No podés consultar esta reserva")
+    return reserva
 
 @router.put("/{reserva_id}", response_model=ReservaResponse)
 def update_reserva(
@@ -136,3 +151,35 @@ def update_reserva(
     db.commit()
     db.refresh(db_reserva)
     return db_reserva
+
+
+@router.delete("/{reserva_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_reserva(
+    reserva_id: int,
+    current_user: UsuarioModel = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    reserva = db.get(ReservaModel, reserva_id)
+    if reserva is None:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if current_user.rol == "socio" and reserva.socio_id != current_user.socio_id:
+        raise HTTPException(status_code=403, detail="No podés cancelar esta reserva")
+
+    current_state = db.get(EstadoReservaModel, reserva.estado_reserva_id)
+    if current_state is None:
+        raise HTTPException(status_code=409, detail="La reserva tiene un estado inexistente")
+    current_name = normalize(current_state.descripcion)
+    if current_name != "aceptada":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se pueden cancelar reservas Aceptadas",
+        )
+    try:
+        cancelled_state = get_status_by_name(db, EstadoReservaModel, "Cancelada")
+    except BusinessRuleError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
+
+    reserva.estado_reserva_id = cancelled_state.id
+    release_exemplar_to_reservation(db, reserva.ejemplar)
+    db.commit()
+    return None

@@ -5,7 +5,7 @@ import flet as ft
 
 from frontend.api.client import ApiClient, ApiError
 from frontend.ui import theme
-from frontend.ui.components import empty_state
+from frontend.ui.components import empty_state, notify, text_input
 from frontend.ui.views.inicio import (
     dashboard,
 )
@@ -17,6 +17,7 @@ from frontend.ui.views.prestamos import mis_prestamos
 from frontend.ui.views.prestamos import prestamos
 from frontend.ui.views.reportes import reportes
 from frontend.ui.views.remitos import remitos
+from frontend.ui.views.reservas import reservas
 from frontend.ui.views.sedes import sedes
 from frontend.ui.views.socios import socios
 from frontend.ui.views.usuarios import acceso, usuarios
@@ -31,6 +32,7 @@ NAV_ITEMS = (
     ("Sedes", ft.Icons.LOCATION_ON_OUTLINED),
     ("Ejemplares", ft.Icons.INVENTORY_2_OUTLINED),
     ("Remitos", ft.Icons.LOCAL_SHIPPING_OUTLINED),
+    ("Reservas", ft.Icons.BOOKMARK_OUTLINED),
     ("Préstamos", ft.Icons.SWAP_HORIZ_OUTLINED),
     ("Reportes", ft.Icons.ANALYTICS_OUTLINED),
     ("Notificaciones", ft.Icons.NOTIFICATIONS_OUTLINED),
@@ -232,6 +234,7 @@ class LibraryApp:
             "Sedes": lambda: sedes.build(self),
             "Ejemplares": lambda: ejemplares.build(self),
             "Remitos": lambda: remitos.build(self),
+            "Reservas": lambda: reservas.build(self),
             "Préstamos": lambda: prestamos.build(self),
             "Mis préstamos": lambda: mis_prestamos.build(self),
             "Reportes": lambda: reportes.build(self),
