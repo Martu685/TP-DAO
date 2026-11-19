@@ -321,7 +321,7 @@ def _new_reservation(app: LibraryApp) -> None:
         value=date.today().isoformat(),
     )
 
-    def submit(_: Any) -> None:
+    def submit() -> None:
         if not all(control.value for control in (member, branch, copy)):
             notify(app.page, "Seleccioná socio, sede y ejemplar.", True)
             return
