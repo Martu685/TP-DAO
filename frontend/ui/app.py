@@ -4,7 +4,7 @@ import flet as ft
 
 from frontend.api.client import ApiClient, ApiError
 from frontend.ui import theme
-from frontend.ui.components import empty_state
+from frontend.ui.components import empty_state, notify, text_input
 from frontend.ui.views.inicio import (
     dashboard,
 )
@@ -35,6 +35,7 @@ class LibraryApp:
     def __init__(self, page: ft.Page, api: ApiClient) -> None:
         self.page = page
         self.api = api
+        self.current_user: dict[str, object] | None = None
         self.content = ft.Container(expand=True, padding=32)
         self.selected_label = ft.Text(
             "Biblioteca UTN",
@@ -122,7 +123,84 @@ class LibraryApp:
                 spacing=0,
             )
         )
-        self.navigate("Inicio")
+        self._show_login_dialog()
+
+    def _show_login_dialog(self) -> None:
+        email = text_input(
+            "Email",
+            keyboard_type=ft.KeyboardType.EMAIL,
+            prefix_icon=ft.Icons.EMAIL_OUTLINED,
+        )
+        password = text_input(
+            "Contraseña",
+            password=True,
+            can_reveal_password=True,
+            prefix_icon=ft.Icons.LOCK_OUTLINED,
+        )
+
+        def submit() -> None:
+            if not email.value.strip() or not password.value:
+                notify(self.page, "Completá email y contraseña.", True)
+                return
+            try:
+                response = self.api.request(
+                    "/api/usuario/login",
+                    "POST",
+                    {
+                        "email": email.value.strip(),
+                        "password": password.value,
+                    },
+                )
+            except ApiError as error:
+                notify(self.page, str(error), True)
+                return
+
+            user = response["usuario"]
+            if user["rol"] not in {"bibliotecario", "admin"}:
+                notify(
+                    self.page,
+                    "Esta interfaz requiere una cuenta de bibliotecario o administrador.",
+                    True,
+                )
+                return
+
+            self.api.set_access_token(response["access_token"])
+            self.current_user = user
+            self.page.pop_dialog()
+            notify(
+                self.page,
+                f"Bienvenido, {user['email']}.",
+            )
+            self.navigate("Inicio")
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Iniciar sesión", weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text(
+                            "Ingresá con una cuenta de bibliotecario o administrador.",
+                            color=theme.MUTED,
+                        ),
+                        email,
+                        password,
+                    ],
+                    tight=True,
+                    spacing=14,
+                ),
+                width=420,
+            ),
+            actions=[
+                ft.FilledButton(
+                    "Ingresar",
+                    icon=ft.Icons.LOGIN,
+                    on_click=lambda _: submit(),
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
 
     def navigate(self, section: str) -> None:
         self.selected_label.value = "Biblioteca UTN" if section == "Inicio" else section

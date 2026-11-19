@@ -9,9 +9,18 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, base_url: str, timeout: float = 10) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 10,
+        access_token: str | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.access_token = access_token
+
+    def set_access_token(self, access_token: str | None) -> None:
+        self.access_token = access_token
 
     def request(
         self,
@@ -20,10 +29,13 @@ class ApiClient:
         data: dict[str, Any] | None = None,
     ) -> Any:
         body = json.dumps(data).encode("utf-8") if data is not None else None
+        headers = {"Content-Type": "application/json"}
+        if self.access_token:
+            headers["Authorization"] = f"Bearer {self.access_token}"
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method=method,
         )
         try:
