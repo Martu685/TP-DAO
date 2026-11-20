@@ -38,9 +38,6 @@ def build(app: LibraryApp) -> ft.Control:
         "Libro", prefix_icon=ft.Icons.MENU_BOOK_OUTLINED, width=240
     )
     all_option = "__all__"
-    physical_states = sorted(
-        {item["estado_fisico"] for item in ejemplares}, key=str.casefold
-    )
     physical_state_filter = ft.Dropdown(
         label="Estado físico",
         value=all_option,
@@ -48,7 +45,7 @@ def build(app: LibraryApp) -> ft.Control:
             ft.dropdown.Option(all_option, "Todos"),
             *[
                 ft.dropdown.Option(state, state)
-                for state in physical_states
+                for state in PHYSICAL_CONDITIONS
             ],
         ],
         width=210,
