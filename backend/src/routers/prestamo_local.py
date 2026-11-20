@@ -21,7 +21,11 @@ from src.library_rules import (
 )
 from src.prestamo_state import InvalidPrestamoTransition, validate_initial_prestamo_state
 from src.prestamo_observer import notify_reservation_state_change
-from src.prestamo_workflow import PrestamoStateNotFound, change_prestamo_state
+from src.prestamo_workflow import (
+    PrestamoStateNotFound,
+    change_prestamo_state,
+    synchronize_overdue_loans,
+)
 from src.routers.prestamo import PrestamoBaseSchema
 
 router = APIRouter(
@@ -104,7 +108,10 @@ def get_prestamos_locales(
                 detail="La cuenta no está asociada a un socio",
             )
         query = query.filter(PrestamoLocalModel.socio_id == current_user.socio_id)
-    return query.all()
+    loans = query.all()
+    if synchronize_overdue_loans(db, loans):
+        db.commit()
+    return loans
 
 @router.put(
     "/{prestamo_id}",

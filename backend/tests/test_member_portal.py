@@ -20,7 +20,7 @@ from src.models import (
     UsuarioModel,
 )
 from src.prestamo_workflow import change_prestamo_state
-from src.routers import historial, notificacion, prestamo_local
+from src.routers import historial, notificacion, prestamo, prestamo_local, reportes
 
 
 class MemberPortalTests(unittest.TestCase):
@@ -264,6 +264,43 @@ class MemberPortalTests(unittest.TestCase):
         self.assertTrue(
             any("cambió de Activo a Vencido" in row.mensaje for row in rows)
         )
+
+    def test_listing_loans_marks_past_due_active_loans_overdue(self):
+        self.member_loan.fecha_vencimiento = date.today() - timedelta(days=1)
+        self.other_loan.fecha_vencimiento = date.today()
+        self.db.commit()
+
+        loans = prestamo.get_prestamos(self.db)
+        member_loans = prestamo_local.get_prestamos_locales(
+            db=self.db,
+            current_user=self.member_user,
+        )
+
+        self.db.refresh(self.member_loan)
+        self.assertEqual(self.member_loan.estado_prestamo_id, self.overdue.id)
+        self.assertEqual(
+            next(loan for loan in loans if loan.id == self.member_loan.id)
+            .estado_prestamo_id,
+            self.overdue.id,
+        )
+        self.assertEqual(member_loans[0].estado_prestamo_id, self.overdue.id)
+        self.assertEqual(self.other_loan.estado_prestamo_id, self.active.id)
+        notifications = self.db.query(NotificacionModel).all()
+        self.assertEqual(len(notifications), 3)
+        self.assertTrue(
+            any("cambió de Activo a Vencido" in item.mensaje for item in notifications)
+        )
+
+    def test_overdue_report_returns_updated_state(self):
+        self.member_loan.fecha_vencimiento = date.today() - timedelta(days=1)
+        self.db.commit()
+
+        rows = reportes.report_overdue_loans(self.db)
+
+        loan_row = next(row for row in rows if row["prestamo_id"] == self.member_loan.id)
+        self.assertEqual(loan_row["estado"], "Vencido")
+        self.db.refresh(self.member_loan)
+        self.assertEqual(self.member_loan.estado_prestamo_id, self.overdue.id)
 
 
 if __name__ == "__main__":

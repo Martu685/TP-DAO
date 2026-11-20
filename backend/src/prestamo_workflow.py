@@ -1,4 +1,7 @@
+from datetime import date
+
 from src.library_rules import (
+    get_status_by_name,
     normalize,
     release_exemplar_to_reservation,
     set_exemplar_state,
@@ -10,6 +13,33 @@ from src.prestamo_state import InvalidPrestamoTransition, validate_prestamo_tran
 
 class PrestamoStateNotFound(LookupError):
     pass
+
+
+def synchronize_overdue_loans(db, loans, today=None):
+    current_date = today or date.today()
+    overdue_state = None
+    updated = False
+
+    for loan in loans:
+        if loan.fecha_devolucion is not None or loan.fecha_vencimiento >= current_date:
+            continue
+
+        current_state = db.get(EstadoPrestamoModel, loan.estado_prestamo_id)
+        if current_state is None:
+            raise PrestamoStateNotFound("El estado del préstamo no existe")
+        if normalize(current_state.descripcion) not in {
+            "activo",
+            "en curso",
+            "prestado",
+        }:
+            continue
+
+        if overdue_state is None:
+            overdue_state = get_status_by_name(db, EstadoPrestamoModel, "Vencido")
+        change_prestamo_state(db, loan, overdue_state.id)
+        updated = True
+
+    return updated
 
 
 def change_prestamo_state(

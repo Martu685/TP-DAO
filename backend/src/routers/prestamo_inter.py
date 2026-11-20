@@ -18,7 +18,11 @@ from src.library_rules import (
     validate_loan_state_id,
 )
 from src.prestamo_state import InvalidPrestamoTransition
-from src.prestamo_workflow import PrestamoStateNotFound, change_prestamo_state
+from src.prestamo_workflow import (
+    PrestamoStateNotFound,
+    change_prestamo_state,
+    synchronize_overdue_loans,
+)
 from src.routers.prestamo import PrestamoBaseSchema
 
 router = APIRouter(
@@ -75,7 +79,10 @@ def create_prestamo_inter(prestamo: PrestamoInterSchema, db: Session = Depends(g
 
 @router.get("", response_model=List[PrestamoInterResponse])
 def get_prestamos_inter(db: Session = Depends(get_db)):
-    return db.query(PrestamoInterbibliotecarioModel).all()
+    loans = db.query(PrestamoInterbibliotecarioModel).all()
+    if synchronize_overdue_loans(db, loans):
+        db.commit()
+    return loans
 
 @router.put("/{prestamo_id}", response_model=PrestamoInterResponse)
 def update_prestamo_inter(prestamo_id: int, prestamo_data: PrestamoInterSchema, db: Session = Depends(get_db)):

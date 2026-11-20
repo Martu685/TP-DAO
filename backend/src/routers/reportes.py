@@ -22,6 +22,7 @@ from src.models import (
     ReservaModel,
     SedeModel,
 )
+from src.prestamo_workflow import synchronize_overdue_loans
 
 
 router = APIRouter(
@@ -57,9 +58,12 @@ def _is_open_loan(loan):
 
 @router.get("/prestamos-activos", response_model=List[Dict[str, Any]])
 def report_active_loans(db: Session = Depends(get_db)):
+    loans = db.query(PrestamoModel).all()
+    if synchronize_overdue_loans(db, loans):
+        db.commit()
     return [
         _loan_report_row(loan)
-        for loan in db.query(PrestamoModel).all()
+        for loan in loans
         if _is_open_loan(loan)
         and loan.fecha_vencimiento >= date.today()
         and loan.estado
@@ -69,9 +73,12 @@ def report_active_loans(db: Session = Depends(get_db)):
 
 @router.get("/prestamos-vencidos", response_model=List[Dict[str, Any]])
 def report_overdue_loans(db: Session = Depends(get_db)):
+    loans = db.query(PrestamoModel).all()
+    if synchronize_overdue_loans(db, loans):
+        db.commit()
     return [
         _loan_report_row(loan)
-        for loan in db.query(PrestamoModel).all()
+        for loan in loans
         if _is_open_loan(loan)
         and loan.fecha_vencimiento < date.today()
         and loan.estado
