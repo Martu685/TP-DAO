@@ -12,6 +12,7 @@ from frontend.ui.components import (
     open_form,
     section_header,
     text_input,
+    update_form_errors,
 )
 
 if TYPE_CHECKING:
@@ -130,8 +131,13 @@ def _new_sede(app: LibraryApp) -> None:
     hours = text_input("Horarios", hint_text="Ej.: Lunes a viernes, 9 a 18 h")
 
     def submit() -> None:
-        if not all(field.value.strip() for field in (name, address, email, hours)):
-            notify(app.page, "Completá todos los campos.", True)
+        fields = [name, address, email, hours]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             app.api.request(
@@ -165,8 +171,13 @@ def _edit_sede(app: LibraryApp, sede: dict[str, Any]) -> None:
     active = ft.Switch(label="Sede activa", value=sede["activa"])
 
     def save() -> bool:
-        if not all(field.value.strip() for field in (name, address, email, hours)):
-            notify(app.page, "Completá todos los campos.", True)
+        fields = [name, address, email, hours]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
             return False
         try:
             app.api.request(

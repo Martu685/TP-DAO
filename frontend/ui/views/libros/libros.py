@@ -12,6 +12,7 @@ from frontend.ui.components import (
     open_form,
     section_header,
     text_input,
+    update_form_errors,
 )
 
 if TYPE_CHECKING:
@@ -97,10 +98,22 @@ def _new_book(app: LibraryApp) -> None:
     year = text_input("Año de publicación", keyboard_type=ft.KeyboardType.NUMBER)
 
     def submit() -> None:
-        if not all(
-            field.value.strip() for field in (isbn, title, authors, publisher, year)
-        ):
-            notify(app.page, "Completá todos los campos.", True)
+        fields = [isbn, title, authors, publisher, year]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
+            return
+        try:
+            publication_year = int(year.value)
+        except ValueError:
+            update_form_errors(
+                app.page,
+                fields,
+                [(year, "El año de publicación debe ser un número.")],
+            )
             return
         try:
             app.api.request(
@@ -115,12 +128,9 @@ def _new_book(app: LibraryApp) -> None:
                         if author.strip()
                     ],
                     "editorial": publisher.value.strip(),
-                    "año_publicacion": int(year.value),
+                    "año_publicacion": publication_year,
                 },
             )
-        except ValueError:
-            notify(app.page, "El año de publicación debe ser un número.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -147,10 +157,22 @@ def _edit_book(app: LibraryApp, book: dict[str, Any]) -> None:
     )
 
     def submit() -> None:
-        if not all(
-            field.value.strip() for field in (isbn, title, authors, publisher, year)
-        ):
-            notify(app.page, "Completá todos los campos.", True)
+        fields = [isbn, title, authors, publisher, year]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
+            return
+        try:
+            publication_year = int(year.value)
+        except ValueError:
+            update_form_errors(
+                app.page,
+                fields,
+                [(year, "El año de publicación debe ser un número.")],
+            )
             return
         try:
             app.api.request(
@@ -165,12 +187,9 @@ def _edit_book(app: LibraryApp, book: dict[str, Any]) -> None:
                         if author.strip()
                     ],
                     "editorial": publisher.value.strip(),
-                    "año_publicacion": int(year.value),
+                    "año_publicacion": publication_year,
                 },
             )
-        except ValueError:
-            notify(app.page, "El año de publicación debe ser un número.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

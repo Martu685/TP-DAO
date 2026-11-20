@@ -6,7 +6,12 @@ from typing import TYPE_CHECKING, Any
 import flet as ft
 
 from frontend.api.client import ApiError
-from frontend.ui.components import notify, open_form, text_input
+from frontend.ui.components import (
+    notify,
+    open_form,
+    text_input,
+    update_form_errors,
+)
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
@@ -143,8 +148,19 @@ def _register(app: LibraryApp, prestamo: dict[str, Any]) -> None:
     )
 
     def submit() -> None:
+        fields = [return_date, condition, observations]
         try:
             parsed_date = date.fromisoformat(return_date.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page,
+                fields,
+                [(return_date, "Usá el formato AAAA-MM-DD.")],
+            )
+            return
+        if update_form_errors(app.page, fields, []):
+            return
+        try:
             app.api.request(
                 f"/api/devolucion/prestamo/{prestamo['id']}",
                 "POST",
@@ -154,9 +170,6 @@ def _register(app: LibraryApp, prestamo: dict[str, Any]) -> None:
                     "estado_fisico": condition.value,
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá una fecha válida con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -184,8 +197,19 @@ def _edit(app: LibraryApp, devolucion: dict[str, Any]) -> None:
     )
 
     def submit() -> None:
+        fields = [return_date, observations]
         try:
             parsed_date = date.fromisoformat(return_date.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page,
+                fields,
+                [(return_date, "Usá el formato AAAA-MM-DD.")],
+            )
+            return
+        if update_form_errors(app.page, fields, []):
+            return
+        try:
             app.api.request(
                 f"/api/devolucion/{devolucion['id']}",
                 "PUT",
@@ -194,9 +218,6 @@ def _edit(app: LibraryApp, devolucion: dict[str, Any]) -> None:
                     "observaciones": observations.value.strip() or None,
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá una fecha válida con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

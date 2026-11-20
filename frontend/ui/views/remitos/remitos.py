@@ -7,7 +7,15 @@ from typing import TYPE_CHECKING, Any
 import flet as ft
 
 from frontend.api.client import ApiError
-from frontend.ui.components import card, data_table, notify, section_header, text_input
+from frontend.ui import theme
+from frontend.ui.components import (
+    card,
+    data_table,
+    notify,
+    section_header,
+    text_input,
+    update_form_errors,
+)
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
@@ -307,8 +315,11 @@ def _open_add_detail(
 
     def submit(_: Any) -> None:
         if not copy.value:
-            notify(app.page, "Seleccioná un ejemplar.", True)
+            update_form_errors(
+                app.page, [copy], [(copy, "Seleccioná un ejemplar.")]
+            )
             return
+        update_form_errors(app.page, [copy], [])
         try:
             app.api.request(
                 "/api/detalle-remito",
@@ -399,8 +410,13 @@ def _open_incidence_form(app: LibraryApp, remito: dict[str, Any]) -> None:
 
     def submit(_: Any) -> None:
         if not description.value.strip():
-            notify(app.page, "Describí la incidencia.", True)
+            update_form_errors(
+                app.page,
+                [description],
+                [(description, "Describí la incidencia.")],
+            )
             return
+        update_form_errors(app.page, [description], [])
         try:
             app.api.request(
                 f"/api/remito/{remito['id']}/incidencias",
@@ -511,13 +527,24 @@ def _new_remito(app: LibraryApp) -> None:
     issue_date = text_input(
         "Fecha de emisión (AAAA-MM-DD)", value=date.today().isoformat()
     )
+    loan_error = ft.Text(color=theme.ERROR, size=12)
 
     def submit(_: Any) -> None:
         selected_ids = [
             loan_id for loan_id, checkbox in checkboxes.items() if checkbox.value
         ]
+        fields = [number, issue_date]
+        errors = []
+        if not number.value.strip():
+            errors.append((number, "Ingresá el número de remito."))
+        if not issue_date.value.strip():
+            errors.append((issue_date, "Ingresá la fecha de emisión."))
+        if update_form_errors(app.page, fields, errors):
+            return
+        loan_error.value = ""
         if not selected_ids:
-            notify(app.page, "Seleccioná al menos un préstamo.", True)
+            loan_error.value = "Seleccioná al menos un préstamo."
+            app.page.update()
             return
         selected = [
             loan for loan in eligible_loans if loan["id"] in selected_ids
@@ -526,17 +553,21 @@ def _new_remito(app: LibraryApp) -> None:
             (loan["sede_origen_id"], loan["sede_destino_id"]) for loan in selected
         }
         if len(routes) != 1:
-            notify(
-                app.page,
-                "Los préstamos de un remito deben compartir origen y destino.",
-                True,
+            loan_error.value = (
+                "Los préstamos de un remito deben compartir origen y destino."
             )
-            return
-        if not number.value.strip():
-            notify(app.page, "Ingresá el número de remito.", True)
+            app.page.update()
             return
         try:
             emission_date = date.fromisoformat(issue_date.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page,
+                fields,
+                [(issue_date, "Usá el formato AAAA-MM-DD.")],
+            )
+            return
+        try:
             app.api.request(
                 "/api/remito",
                 "POST",
@@ -546,9 +577,6 @@ def _new_remito(app: LibraryApp) -> None:
                     "prestamos_inter_ids": selected_ids,
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá una fecha válida con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -565,6 +593,7 @@ def _new_remito(app: LibraryApp) -> None:
                     number,
                     issue_date,
                     ft.Text("Préstamos pendientes", weight=ft.FontWeight.W_600),
+                    loan_error,
                     ft.Container(
                         content=ft.Column(
                             loan_controls,

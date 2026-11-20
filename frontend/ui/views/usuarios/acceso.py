@@ -6,7 +6,12 @@ import flet as ft
 
 from frontend.api.client import ApiError
 from frontend.ui import theme
-from frontend.ui.components import card, notify, text_input
+from frontend.ui.components import (
+    card,
+    notify,
+    text_input,
+    update_form_errors,
+)
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
@@ -27,8 +32,13 @@ def build_login(app: LibraryApp, email: str = "") -> ft.Control:
     )
 
     def login(_: Any = None) -> None:
-        if not email_field.value.strip() or not password_field.value:
-            notify(app.page, "Ingresá tu email y contraseña.", True)
+        fields = [email_field, password_field]
+        errors = []
+        if not email_field.value.strip():
+            errors.append((email_field, "Ingresá tu email."))
+        if not password_field.value:
+            errors.append((password_field, "Ingresá tu contraseña."))
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             response = app.api.request(
@@ -92,23 +102,27 @@ def build_registration(app: LibraryApp) -> ft.Control:
     )
 
     def register(_: Any = None) -> None:
-        values = (
-            name.value.strip(),
-            surname.value.strip(),
-            dni.value.strip(),
-            email.value.strip(),
-            phone.value.strip(),
-        )
-        if not all(values) or not password.value:
-            notify(app.page, "Completá todos los campos del registro.", True)
+        fields = [name, surname, dni, email, phone, password]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             dni_value = int(dni.value.strip())
         except ValueError:
-            notify(app.page, "El DNI debe ser un número entero.", True)
+            update_form_errors(
+                app.page, fields, [(dni, "El DNI debe ser un número entero.")]
+            )
             return
         if not 8 <= len(password.value) <= 128:
-            notify(app.page, "La contraseña debe tener entre 8 y 128 caracteres.", True)
+            update_form_errors(
+                app.page,
+                fields,
+                [(password, "Usá entre 8 y 128 caracteres.")],
+            )
             return
 
         try:

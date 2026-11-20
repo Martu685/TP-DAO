@@ -14,6 +14,7 @@ from frontend.ui.components import (
     open_form,
     section_header,
     text_input,
+    update_form_errors,
 )
 
 if TYPE_CHECKING:
@@ -265,30 +266,34 @@ def _new_ejemplar(app: LibraryApp) -> None:
     state = ft.Text(f"Estado inicial: {initial_state['descripcion']}")
 
     def submit() -> None:
-        if not all(control.value.strip() for control in (codigo, cantidad)):
-            notify(app.page, "Completá todos los campos.", True)
-            return
+        fields = [codigo, cantidad, estado_fisico, book, branch]
+        errors = []
+        if not codigo.value.strip():
+            errors.append((codigo, "Ingresá un código."))
+        if not cantidad.value.strip():
+            errors.append((cantidad, "Ingresá una cantidad."))
         if not book.value:
-            notify(app.page, "Seleccioná un libro de la lista.", True)
-            return
-        if not any(str(item["id"]) == book.value for item in books):
-            notify(app.page, "Seleccioná un libro de las opciones disponibles.", True)
-            return
+            errors.append((book, "Seleccioná un libro."))
+        elif not any(str(item["id"]) == book.value for item in books):
+            errors.append((book, "Seleccioná un libro de las opciones disponibles."))
         if not branch.value:
-            notify(app.page, "Seleccioná la sede.", True)
+            errors.append((branch, "Seleccioná una sede."))
+        if not estado_fisico.value:
+            errors.append((estado_fisico, "Seleccioná el estado físico."))
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             quantity = int(cantidad.value)
             if quantity < 1 or quantity > 500:
                 raise ValueError
         except ValueError:
-            notify(app.page, "La cantidad debe ser un número entre 1 y 500.", True)
-            return
-        if not estado_fisico.value:
-            notify(app.page, "Seleccioná el estado físico.", True)
+            update_form_errors(
+                app.page,
+                fields,
+                [(cantidad, "Ingresá un número entre 1 y 500.")],
+            )
             return
         try:
-            selected_book_id = int(book.value)
             app.api.request(
                 "/api/ejemplar",
                 "POST",
@@ -298,12 +303,9 @@ def _new_ejemplar(app: LibraryApp) -> None:
                     "estado_fisico": estado_fisico.value,
                     "estado_ejemplar_id": initial_state["id"],
                     "sede_id": int(branch.value),
-                    "libro_id": selected_book_id,
+                    "libro_id": int(book.value),
                 },
             )
-        except ValueError as error:
-            notify(app.page, str(error), True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -352,14 +354,21 @@ def _edit_ejemplar(
     )
 
     def submit() -> None:
+        fields = [codigo, estado_fisico, sede, libro]
+        errors = []
         if not codigo.value.strip():
-            notify(app.page, "Completá todos los campos.", True)
-            return
+            errors.append((codigo, "Ingresá un código."))
         if not estado_fisico.value:
-            notify(app.page, "Seleccioná un estado físico válido.", True)
-            return
-        if not all(control.value for control in (sede, libro)):
-            notify(app.page, "Seleccioná la sede y el libro.", True)
+            errors.append((estado_fisico, "Seleccioná un estado físico válido."))
+        if not sede.value or not any(
+            str(item["id"]) == sede.value for item in sedes
+        ):
+            errors.append((sede, "Seleccioná una sede válida."))
+        if not libro.value or not any(
+            str(item["id"]) == libro.value for item in books
+        ):
+            errors.append((libro, "Seleccioná un libro válido."))
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             app.api.request(
@@ -373,9 +382,6 @@ def _edit_ejemplar(
                     "libro_id": int(libro.value),
                 },
             )
-        except ValueError:
-            notify(app.page, "Seleccioná valores válidos para sede y libro.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

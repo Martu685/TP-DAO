@@ -15,6 +15,7 @@ from frontend.ui.components import (
     open_form,
     section_header,
     text_input,
+    update_form_errors,
 )
 
 if TYPE_CHECKING:
@@ -322,25 +323,35 @@ def _new_reservation(app: LibraryApp) -> None:
     )
 
     def submit() -> None:
-        if not all(control.value for control in (member, branch, copy)):
-            notify(app.page, "Seleccioná socio, sede y ejemplar.", True)
+        fields = [reservation_date, member, branch, copy]
+        errors = [
+            (field, "Seleccioná una opción.")
+            for field in (member, branch, copy)
+            if not field.value
+        ]
+        if update_form_errors(app.page, fields, errors):
             return
         try:
-            date.fromisoformat(reservation_date.value.strip())
+            parsed_date = date.fromisoformat(reservation_date.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page,
+                fields,
+                [(reservation_date, "Usá el formato AAAA-MM-DD.")],
+            )
+            return
+        try:
             app.api.request(
                 "/api/reserva",
                 "POST",
                 {
-                    "fecha": reservation_date.value.strip(),
+                    "fecha": parsed_date.isoformat(),
                     "estado_reserva_id": pending["id"],
                     "socio_id": int(member.value),
                     "ejemplar_id": int(copy.value),
                     "sede_id": int(branch.value),
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá una fecha válida con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

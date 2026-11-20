@@ -5,7 +5,14 @@ from typing import TYPE_CHECKING, Any
 import flet as ft
 
 from frontend.api.client import ApiError
-from frontend.ui.components import card, empty_state, notify, section_header, text_input
+from frontend.ui.components import (
+    card,
+    empty_state,
+    notify,
+    section_header,
+    text_input,
+    update_form_errors,
+)
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
@@ -52,14 +59,22 @@ def build(app: LibraryApp) -> ft.Control:
     )
 
     def create_staff(_: Any = None) -> None:
-        if not email.value.strip() or not password.value:
-            notify(app.page, "Completá el email y la contraseña.", True)
+        fields = [email, password, role]
+        errors = []
+        if not email.value.strip():
+            errors.append((email, "Ingresá el email."))
+        if not password.value:
+            errors.append((password, "Ingresá la contraseña."))
+        if role.value not in {"bibliotecario", "admin"}:
+            errors.append((role, "Seleccioná un rol válido."))
+        if update_form_errors(app.page, fields, errors):
             return
         if not 8 <= len(password.value) <= 128:
-            notify(app.page, "La contraseña debe tener entre 8 y 128 caracteres.", True)
-            return
-        if role.value not in {"bibliotecario", "admin"}:
-            notify(app.page, "Seleccioná un rol válido para la cuenta.", True)
+            update_form_errors(
+                app.page,
+                fields,
+                [(password, "Usá entre 8 y 128 caracteres.")],
+            )
             return
 
         try:

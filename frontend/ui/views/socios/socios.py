@@ -12,6 +12,7 @@ from frontend.ui.components import (
     open_form,
     section_header,
     text_input,
+    update_form_errors,
 )
 
 if TYPE_CHECKING:
@@ -134,10 +135,20 @@ def _new_socio(app: LibraryApp) -> None:
     phone = text_input("Teléfono", keyboard_type=ft.KeyboardType.PHONE)
 
     def submit() -> None:
-        if not all(
-            field.value.strip() for field in (name, surname, dni, email, phone)
-        ):
-            notify(app.page, "Completá todos los campos.", True)
+        fields = [name, surname, dni, email, phone]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
+            return
+        try:
+            dni_value = int(dni.value)
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(dni, "El DNI debe ser un número entero.")]
+            )
             return
         try:
             app.api.request(
@@ -146,15 +157,12 @@ def _new_socio(app: LibraryApp) -> None:
                 {
                     "nombre": name.value.strip(),
                     "apellido": surname.value.strip(),
-                    "dni": int(dni.value),
+                    "dni": dni_value,
                     "email": email.value.strip(),
                     "telefono": phone.value.strip(),
                     "habilitado": True,
                 },
             )
-        except ValueError:
-            notify(app.page, "El DNI debe ser un número.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -185,8 +193,20 @@ def _edit_socio(app: LibraryApp, socio: dict[str, Any]) -> None:
     enabled = ft.Switch(label="Socio habilitado", value=socio["habilitado"])
 
     def submit() -> None:
-        if not all(field.value.strip() for field in (name, surname, dni, email, phone)):
-            notify(app.page, "Completá todos los campos.", True)
+        fields = [name, surname, dni, email, phone]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
+            return
+        try:
+            dni_value = int(dni.value)
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(dni, "El DNI debe ser un número entero.")]
+            )
             return
         try:
             app.api.request(
@@ -195,15 +215,12 @@ def _edit_socio(app: LibraryApp, socio: dict[str, Any]) -> None:
                 {
                     "nombre": name.value.strip(),
                     "apellido": surname.value.strip(),
-                    "dni": int(dni.value),
+                    "dni": dni_value,
                     "email": email.value.strip(),
                     "telefono": phone.value.strip(),
                     "habilitado": enabled.value,
                 },
             )
-        except ValueError:
-            notify(app.page, "El DNI debe ser un número.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

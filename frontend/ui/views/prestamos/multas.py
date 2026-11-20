@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import math
 from datetime import date
 from typing import TYPE_CHECKING, Any
 
 import flet as ft
 
 from frontend.api.client import ApiError
-from frontend.ui.components import notify, open_form, text_input
+from frontend.ui.components import (
+    notify,
+    open_form,
+    text_input,
+    update_form_errors,
+)
 
 if TYPE_CHECKING:
     from frontend.ui.app import LibraryApp
@@ -163,15 +169,34 @@ def _register(app: LibraryApp, prestamo: dict[str, Any]) -> None:
     reason = text_input("Motivo")
 
     def submit() -> None:
-        if not amount.value.strip() or not reason.value.strip():
-            notify(app.page, "Completá el monto y el motivo.", True)
+        fields = [amount, fine_date, reason]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             parsed_amount = float(amount.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(amount, "Ingresá un monto numérico válido.")]
+            )
+            return
+        if not math.isfinite(parsed_amount) or parsed_amount < 0:
+            update_form_errors(
+                app.page, fields, [(amount, "El monto debe ser un número no negativo.")]
+            )
+            return
+        try:
             parsed_date = date.fromisoformat(fine_date.value.strip())
-            if parsed_amount < 0:
-                notify(app.page, "El monto no puede ser negativo.", True)
-                return
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(fine_date, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        try:
             app.api.request(
                 "/api/multa",
                 "POST",
@@ -182,13 +207,6 @@ def _register(app: LibraryApp, prestamo: dict[str, Any]) -> None:
                     "prestamo_id": prestamo["id"],
                 },
             )
-        except ValueError:
-            notify(
-                app.page,
-                "Ingresá un monto numérico y una fecha válida (AAAA-MM-DD).",
-                True,
-            )
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -215,15 +233,34 @@ def _edit(app: LibraryApp, multa: dict[str, Any]) -> None:
     reason = text_input("Motivo", value=multa["motivo"])
 
     def submit() -> None:
-        if not amount.value.strip() or not reason.value.strip():
-            notify(app.page, "Completá el monto y el motivo.", True)
+        fields = [amount, fine_date, reason]
+        errors = [
+            (field, "Completá este campo.")
+            for field in fields
+            if not field.value.strip()
+        ]
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             parsed_amount = float(amount.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(amount, "Ingresá un monto numérico válido.")]
+            )
+            return
+        if not math.isfinite(parsed_amount) or parsed_amount < 0:
+            update_form_errors(
+                app.page, fields, [(amount, "El monto debe ser un número no negativo.")]
+            )
+            return
+        try:
             parsed_date = date.fromisoformat(fine_date.value.strip())
-            if parsed_amount < 0:
-                notify(app.page, "El monto no puede ser negativo.", True)
-                return
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(fine_date, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        try:
             app.api.request(
                 f"/api/multa/{multa['id']}",
                 "PUT",
@@ -233,13 +270,6 @@ def _edit(app: LibraryApp, multa: dict[str, Any]) -> None:
                     "motivo": reason.value.strip(),
                 },
             )
-        except ValueError:
-            notify(
-                app.page,
-                "Ingresá un monto numérico y una fecha válida (AAAA-MM-DD).",
-                True,
-            )
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

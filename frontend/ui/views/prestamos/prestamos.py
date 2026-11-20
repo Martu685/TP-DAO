@@ -13,6 +13,7 @@ from frontend.ui.components import (
     open_form,
     section_header,
     text_input,
+    update_form_errors,
 )
 from frontend.ui.views.prestamos import devoluciones, multas
 
@@ -232,19 +233,37 @@ def _new_interlibrary_loan(app: LibraryApp) -> None:
     update_choices()
 
     def submit() -> None:
-        if not all(control.value for control in (origin, destination, copy)):
-            notify(app.page, "Seleccioná origen, destino y ejemplar.", True)
+        fields = [origin, destination, copy, start, due]
+        errors = []
+        for field in (origin, destination, copy):
+            if not field.value:
+                errors.append((field, "Seleccioná una opción."))
+            elif not field.value.isdecimal():
+                errors.append((field, "Seleccioná una opción válida."))
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             start_date = date.fromisoformat(start.value.strip())
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(start, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        try:
             due_date = date.fromisoformat(due.value.strip())
-            if due_date < start_date:
-                notify(
-                    app.page,
-                    "El vencimiento no puede ser anterior al inicio.",
-                    True,
-                )
-                return
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(due, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        if due_date < start_date:
+            update_form_errors(
+                app.page,
+                fields,
+                [(due, "El vencimiento no puede ser anterior al inicio.")],
+            )
+            return
+        try:
             app.api.request(
                 "/api/prestamo-interbibliotecario",
                 "POST",
@@ -261,9 +280,6 @@ def _new_interlibrary_loan(app: LibraryApp) -> None:
                     "remito_id": None,
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá fechas válidas con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -291,16 +307,25 @@ def _edit_interlibrary_due_date(
     )
 
     def submit() -> None:
+        fields = [due]
         try:
             due_date = date.fromisoformat(due.value.strip())
             start_date = date.fromisoformat(prestamo["fecha_inicio"])
-            if due_date < start_date:
-                notify(
-                    app.page,
-                    "El vencimiento no puede ser anterior al inicio.",
-                    True,
-                )
-                return
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(due, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        if update_form_errors(app.page, fields, []):
+            return
+        if due_date < start_date:
+            update_form_errors(
+                app.page,
+                fields,
+                [(due, "El vencimiento no puede ser anterior al inicio.")],
+            )
+            return
+        try:
             app.api.request(
                 f"/api/prestamo-interbibliotecario/{prestamo['id']}",
                 "PUT",
@@ -317,9 +342,6 @@ def _edit_interlibrary_due_date(
                     "remito_id": prestamo["remito_id"],
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá una fecha válida con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return
@@ -400,17 +422,37 @@ def _new_prestamo(app: LibraryApp) -> None:
     )
 
     def submit() -> None:
-        if not all(control.value for control in (member, branch, copy)):
-            notify(app.page, "Seleccioná socio, sede y ejemplar.", True)
+        fields = [member, branch, copy, start, due]
+        errors = []
+        for field in (member, branch, copy):
+            if not field.value:
+                errors.append((field, "Seleccioná una opción."))
+            elif not field.value.isdecimal():
+                errors.append((field, "Seleccioná una opción válida."))
+        if update_form_errors(app.page, fields, errors):
             return
         try:
             start_date = date.fromisoformat(start.value)
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(start, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        try:
             due_date = date.fromisoformat(due.value)
-            if due_date < start_date:
-                notify(
-                    app.page, "El vencimiento no puede ser anterior al inicio.", True
-                )
-                return
+        except ValueError:
+            update_form_errors(
+                app.page, fields, [(due, "Usá el formato AAAA-MM-DD.")]
+            )
+            return
+        if due_date < start_date:
+            update_form_errors(
+                app.page,
+                fields,
+                [(due, "El vencimiento no puede ser anterior al inicio.")],
+            )
+            return
+        try:
             app.api.request(
                 "/api/prestamo-local",
                 "POST",
@@ -426,9 +468,6 @@ def _new_prestamo(app: LibraryApp) -> None:
                     "socio_id": int(member.value),
                 },
             )
-        except ValueError:
-            notify(app.page, "Usá fechas válidas con formato AAAA-MM-DD.", True)
-            return
         except ApiError as error:
             notify(app.page, str(error), True)
             return

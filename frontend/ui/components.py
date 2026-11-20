@@ -6,10 +6,53 @@ import flet as ft
 from frontend.ui.theme import ACCENT, BORDER, ERROR, INK, MUTED
 
 
+FormField = ft.TextField | ft.Dropdown
+
+
+def show_error_dialog(
+    page: ft.Page,
+    message: str,
+    title: str = "No se pudo completar la acción",
+) -> None:
+    page.show_dialog(
+        ft.AlertDialog(
+            modal=True,
+            title=ft.Text(title, color=ERROR, weight=ft.FontWeight.BOLD),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton(
+                    "Entendido",
+                    on_click=lambda _: page.pop_dialog(),
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+    )
+
+
+def update_form_errors(
+    page: ft.Page,
+    fields: list[FormField],
+    errors: list[tuple[FormField, str]],
+) -> bool:
+    messages = {id(field): message for field, message in errors}
+    for field in fields:
+        message = messages.get(id(field))
+        if isinstance(field, ft.TextField):
+            field.error = message
+        else:
+            field.error_text = message
+    page.update()
+    return bool(messages)
+
+
 def notify(page: ft.Page, message: str, error: bool = False) -> None:
+    if error:
+        show_error_dialog(page, message)
+        return
     page.snack_bar = ft.SnackBar(
         content=ft.Text(message, color=ft.Colors.WHITE),
-        bgcolor=ERROR if error else ACCENT,
+        bgcolor=ACCENT,
     )
     page.show_dialog(page.snack_bar)
 
