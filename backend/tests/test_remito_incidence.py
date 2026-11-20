@@ -73,7 +73,7 @@ class RemitoIncidenceTests(unittest.TestCase):
         self.remit.fecha_emision = date.today()
         self.loan = SimpleNamespace(
             id=5,
-            estado=SimpleNamespace(descripcion="Devuelto"),
+            estado=SimpleNamespace(descripcion="Activo"),
             fecha_devolucion=None,
             sede_destino_id=3,
             ejemplar=SimpleNamespace(sede_id=1),
@@ -109,13 +109,14 @@ class RemitoIncidenceTests(unittest.TestCase):
                 ),
             ),
             patch.object(remito, "require_active_branch"),
-            patch.object(remito, "release_exemplar_to_reservation"),
         ):
             result = remito.receive_remito(self.remit.id, db)
 
         self.assertEqual(result.estado_remito_id, self.received.id)
         self.assertEqual(result.fecha_recepcion, date.today())
         self.assertEqual(result.incidencias, [incidence_record])
+        self.assertEqual(self.loan.estado.descripcion, "Activo")
+        self.assertIsNone(self.loan.fecha_devolucion)
 
     def test_only_prepared_remit_can_be_cancelled(self):
         prepared = SimpleNamespace(id=4, descripcion="Preparado")

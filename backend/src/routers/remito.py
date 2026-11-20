@@ -9,7 +9,6 @@ from src.library_rules import (
     BusinessRuleError,
     get_status_by_name,
     normalize,
-    release_exemplar_to_reservation,
     require_active_branch,
 )
 from src.models import (
@@ -192,25 +191,14 @@ def receive_remito(remito_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="El remito no tiene préstamos asociados")
     try:
         received_state = get_status_by_name(db, EstadoRemitoModel, "Recibido")
-        closed_loan_state = get_status_by_name(db, EstadoPrestamoModel, "Devuelto")
         for loan in loans:
             require_active_branch(db, loan.sede_destino_id)
             loan_state_name = normalize(loan.estado.descripcion)
-            if loan_state_name in {"activo", "vencido"}:
-                change_prestamo_state(
-                    db,
-                    loan,
-                    closed_loan_state.id,
-                    allow_return=True,
-                    release_copy=False,
-                )
-            elif loan_state_name != "devuelto":
+            if loan_state_name not in {"activo", "vencido", "devuelto"}:
                 raise BusinessRuleError(
                     "El préstamo asociado no está en un estado recepcionable"
                 )
-            loan.fecha_devolucion = date.today()
             loan.ejemplar.sede_id = loan.sede_destino_id
-            release_exemplar_to_reservation(db, loan.ejemplar, loan.id)
         remito.fecha_recepcion = date.today()
         remito.estado_remito_id = received_state.id
         db.commit()
