@@ -9,6 +9,7 @@ from src.auth import require_roles
 from src.database import get_db
 from src.library_rules import is_exemplar_available, normalize
 from src.models import (
+    EstadoReservaModel,
     EstadoRemitoModel,
     DetalleRemitoModel,
     EjemplarModel,
@@ -109,7 +110,7 @@ def report_most_requested_books(db: Session = Depends(get_db)):
         ):
             requested[loan.ejemplar.libro_id] += 1
     for reservation in db.query(ReservaModel).all():
-        state = reservation.estado
+        state = db.get(EstadoReservaModel, reservation.estado_reserva_id)
         if (
             reservation.ejemplar
             and (state is None or normalize(state.descripcion) != "cancelada")
